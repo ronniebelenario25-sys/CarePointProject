@@ -31,7 +31,6 @@ class DatabaseManager:
     def get_doctor_appointments(self, doctor_name):
         """Security isolation: Fetches only appointments assigned to the specific doctor"""
         try:
-            # Matches doctor username/name format (e.g., 'doctor' or 'Dr. Smith')
             response = self.supabase.table("appointments").select("*").ilike("doctor_id", f"%{doctor_name}%").order("appointment_date", desc=False).execute()
             return response.data
         except Exception as e:
@@ -46,7 +45,7 @@ class DatabaseManager:
             return []
 
     def add_appointment(self, patient_name, doctor_id, appointment_date, appointment_time, status):
-        """Adds a new appointment with exact time tracking"""
+        """Adds a new appointment with exact time tracking and error handling"""
         try:
             data = {
                 "patient_name": patient_name,
@@ -56,12 +55,12 @@ class DatabaseManager:
                 "status": status
             }
             self.supabase.table("appointments").insert(data).execute()
-            return True
+            return True, None
         except Exception as e:
-            return False
+            return False, str(e)
 
     def check_and_seed_records(self):
-        """Seeds initial realistic records if database table is empty"""
+        """Seeds initial realistic records with exact times if database table is empty"""
         try:
             existing = self.get_all_appointments()
             if len(existing) < 10:
@@ -117,7 +116,7 @@ def main():
         
         col1, col2, col3 = st.columns([1, 1.2, 1])
         with col2:
-            st.info("💡 **Presentation Login Hints:**\n- Admin: `admin` / `password123`\n- Doctor: `doctor` / `password123` (or use `Dr. Smith`)\n- Patient: `patient` / `password123`")
+            st.info("💡 **Presentation Login Hints:**\n- Admin: `admin` / `password123`\n- Doctor: `doctor` / `password123`\n- Patient: `patient` / `password123`")
             
             with st.form("login_form"):
                 st.subheader("Account Login")
@@ -175,7 +174,6 @@ def main():
         st.title("🩺 Medical Professional / Doctor Portal")
         st.markdown(f"Welcome, **{st.session_state.username}**. Managing your personal clinical schedule and patient queue.")
         
-        # Security Isolation Query: Filter only records assigned to this doctor
         doc_records = db.get_doctor_appointments(st.session_state.username)
         
         col1, col2 = st.columns(2)
@@ -189,7 +187,7 @@ def main():
         if doc_records:
             st.dataframe(doc_records, use_container_width=True)
         else:
-            st.warning("No appointments currently assigned to your account name. (If testing, try updating doctor names or check sample assignments).")
+            st.warning("No appointments currently assigned to your account name.")
 
     # --- PATIENT PORTAL (SECURED & ISOLATED) ---
     elif role == "Patient":
@@ -203,7 +201,7 @@ def main():
             with st.form("booking_form"):
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    p_name = st.text_input("Full Name (Match with account name)", value=st.session_state.username)
+                    p_name = st.text_input("Full Name", value=st.session_state.username)
                     doc_choice = st.selectbox("Select Attending Physician", ["Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos"])
                 with col_b:
                     app_date = st.date_input("Preferred Date")
@@ -212,12 +210,12 @@ def main():
                 book_submit = st.form_submit_button("Confirm & Secure Booking", use_container_width=True)
                 
                 if book_submit:
-                    success = db.add_appointment(p_name, doc_choice, app_date, app_time, "Waiting")
+                    success, err_msg = db.add_appointment(p_name, doc_choice, app_date, app_time, "Waiting")
                     if success:
                         st.success("🎉 Appointment successfully booked and synchronized with the cloud database!")
                         st.rerun()
                     else:
-                        st.error("Failed to submit appointment booking. Please check database inputs.")
+                        st.error(f"Failed to submit booking. Supabase Error: {err_msg}")
                         
         with tab2:
             st.subheader("Your Personal Medical Appointments")
@@ -227,7 +225,7 @@ def main():
             if my_records:
                 st.dataframe(my_records, use_container_width=True)
             else:
-                st.info("You have no scheduled appointments. Switch to the **Book New Appointment** tab to schedule your first visit!")
+                st.info("You have no scheduled appointments under this account name. Try booking one in the first tab.")
 
 if __name__ == "__main__":
     main()
