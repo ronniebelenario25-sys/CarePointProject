@@ -21,9 +21,18 @@ class DatabaseManager:
             return None
 
     def get_all_appointments(self):
-        """Fetches all master records (Restricted to Admin & Doctors)"""
+        """Fetches all master records (Restricted to Admin only)"""
         try:
             response = self.supabase.table("appointments").select("*").order("appointment_date", desc=False).execute()
+            return response.data
+        except Exception as e:
+            return []
+
+    def get_doctor_appointments(self, doctor_name):
+        """Security isolation: Fetches only appointments assigned to the specific doctor"""
+        try:
+            # Matches doctor username/name format (e.g., 'doctor' or 'Dr. Smith')
+            response = self.supabase.table("appointments").select("*").ilike("doctor_id", f"%{doctor_name}%").order("appointment_date", desc=False).execute()
             return response.data
         except Exception as e:
             return []
@@ -108,7 +117,7 @@ def main():
         
         col1, col2, col3 = st.columns([1, 1.2, 1])
         with col2:
-            st.info("💡 **Presentation Login Hints:**\n- Admin: `admin` / `password123`\n- Doctor: `doctor` / `password123`\n- Patient: `patient` / `password123`")
+            st.info("💡 **Presentation Login Hints:**\n- Admin: `admin` / `password123`\n- Doctor: `doctor` / `password123` (or use `Dr. Smith`)\n- Patient: `patient` / `password123`")
             
             with st.form("login_form"):
                 st.subheader("Account Login")
@@ -149,11 +158,10 @@ def main():
         
         records = db.get_all_appointments()
         
-        # Metric Grid Layout
         m1, m2, m3 = st.columns(3)
         m1.metric(label="Total Database Records", value=len(records))
         m2.metric(label="Active Queue Status", value="Online 🟢")
-        m3.metric(label="System Security", value="Encrypted (RLS)")
+        m3.metric(label="System Security", value="Role-Based Protected")
         
         st.markdown("---")
         st.subheader("📋 Master Appointment Database")
@@ -162,23 +170,26 @@ def main():
         else:
             st.warning("No records found in the database.")
 
-    # --- DOCTOR PORTAL ---
+    # --- DOCTOR PORTAL (SECURED & ISOLATED) ---
     elif role == "Doctor":
         st.title("🩺 Medical Professional / Doctor Portal")
-        st.markdown("Review your active clinical schedule, exact appointment time slots, and patient queue lists.")
+        st.markdown(f"Welcome, **{st.session_state.username}**. Managing your personal clinical schedule and patient queue.")
         
-        records = db.get_all_appointments()
+        # Security Isolation Query: Filter only records assigned to this doctor
+        doc_records = db.get_doctor_appointments(st.session_state.username)
         
         col1, col2 = st.columns(2)
-        col1.metric(label="Total Assigned Queue Size", value=len(records))
-        col2.metric(label="Clinic Status", value="Accepting Patients")
+        col1.metric(label="Your Assigned Appointments", value=len(doc_records))
+        col2.metric(label="Clinic Queue Status", value="Active 🟢")
         
         st.markdown("---")
-        st.subheader("🕒 Active Patient Time Slots & Queue")
-        if records:
-            st.dataframe(records, use_container_width=True)
+        st.subheader("🕒 Your Assigned Patient Schedule")
+        st.markdown("> *Privacy Notice: To protect patient data compliance, only appointments assigned to your professional ID are visible here.*")
+        
+        if doc_records:
+            st.dataframe(doc_records, use_container_width=True)
         else:
-            st.warning("No appointments currently scheduled.")
+            st.warning("No appointments currently assigned to your account name. (If testing, try updating doctor names or check sample assignments).")
 
     # --- PATIENT PORTAL (SECURED & ISOLATED) ---
     elif role == "Patient":
@@ -212,7 +223,6 @@ def main():
             st.subheader("Your Personal Medical Appointments")
             st.markdown("> *Note: For patient data privacy, only appointments booked under your personal account name are visible here.*")
             
-            # Security Isolation Query
             my_records = db.get_patient_appointments(st.session_state.username)
             if my_records:
                 st.dataframe(my_records, use_container_width=True)
