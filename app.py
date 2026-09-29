@@ -72,7 +72,7 @@ class DatabaseManager:
             return False, str(e)
 
     def check_and_seed_records(self):
-        """Seeds initial realistic records with 10 doctors if database table is empty or small"""
+        """Seeds initial realistic records ensuring EVERY doctor gets patients distributed evenly"""
         try:
             existing = self.get_all_appointments()
             if len(existing) < 50:
@@ -87,7 +87,27 @@ class DatabaseManager:
                 statuses = ["Waiting", "Completed", "Cancelled"]
 
                 batch_data = []
-                for i in range(1, 301):
+                # Ensure every single doctor gets guaranteed records first
+                for doc in doctors:
+                    for _ in range(5): # 5 records per doctor minimum guarantee
+                        patient_name = f"{random.choice(first_names)} {random.choice(last_names)}"
+                        random_days = random.randint(-15, 15)
+                        appointment_date = (datetime.now() + timedelta(days=random_days)).strftime("%Y-%m-%d")
+                        appointment_time = random.choice(times)
+                        status = random.choice(statuses)
+                        
+                        batch_data.append({
+                            "patient_name": patient_name,
+                            "doctor_id": doc,
+                            "appointment_date": appointment_date,
+                            "appointment_time": appointment_time,
+                            "status": status,
+                            "diagnosis": "Routine checkup and clinical evaluation normal." if status == "Completed" else None,
+                            "prescription": "Paracetamol 500mg every 4 hours as needed." if status == "Completed" else None
+                        })
+
+                # Fill up the rest randomly up to 300 records
+                for i in range(len(batch_data), 300):
                     patient_name = f"{random.choice(first_names)} {random.choice(last_names)}"
                     doctor_id = random.choice(doctors)
                     random_days = random.randint(-15, 15)
@@ -300,7 +320,7 @@ def main():
     # --- PATIENT PORTAL (SECURED & ISOLATED) ---
     elif role == "Patient":
         st.title("👤 Patient Self-Service Portal")
-        st.markdown(f"Welcome back, **{st.session_state.username}**. Manage your healthcare appointments safely and confidentially.")
+        st.markdown(f"Welcome back, **{st.session_system.username if 'username' in st.session_state else 'Patient'}**.") # Safe handling
         
         tab1, tab2 = st.tabs(["📅 Book New Appointment", "📋 My Confidential Appointments"])
         
@@ -327,13 +347,11 @@ def main():
                         
         with tab2:
             st.subheader("Your Personal Medical Appointments")
-            st.markdown("> *Note: For patient data privacy, only appointments booked under your personal account name are visible here.*")
-            
             my_records = db.get_patient_appointments(st.session_state.username)
             if my_records:
                 st.dataframe(my_records, use_container_width=True)
             else:
-                st.info("You have no scheduled appointments under this account name. Try booking one in the first tab.")
+                st.info("You have no scheduled appointments under this account name.")
 
 if __name__ == "__main__":
     main()
