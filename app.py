@@ -20,21 +20,30 @@ class DatabaseManager:
             st.error(f"Database connection error: {e}")
             return None
 
-    def get_appointments(self):
-        """Fetches all records from Supabase"""
+    def get_all_appointments(self):
+        """Fetches all records (for Admin/Doctors)"""
         try:
             response = self.supabase.table("appointments").select("*").execute()
             return response.data
         except Exception as e:
             return []
 
-    def add_appointment(self, patient_name, doctor_id, appointment_date, status):
-        """Allows adding a new appointment"""
+    def get_patient_appointments(self, patient_name):
+        """Fetches only appointments belonging to a specific patient"""
+        try:
+            response = self.supabase.table("appointments").select("*").eq("patient_name", patient_name).execute()
+            return response.data
+        except Exception as e:
+            return []
+
+    def add_appointment(self, patient_name, doctor_id, appointment_date, appointment_time, status):
+        """Allows adding a new appointment with exact time"""
         try:
             data = {
                 "patient_name": patient_name,
                 "doctor_id": doctor_id,
                 "appointment_date": appointment_date,
+                "appointment_time": appointment_time,
                 "status": status
             }
             self.supabase.table("appointments").insert(data).execute()
@@ -42,14 +51,15 @@ class DatabaseManager:
         except Exception as e:
             return False
 
-    def check_and_seed_300_records(self):
-        """Automatically seeds records if table is sparse"""
+    def check_and_seed_records(self):
+        """Automatically seeds records with exact times if table is sparse"""
         try:
-            existing = self.get_appointments()
+            existing = self.get_all_appointments()
             if len(existing) < 10:
                 first_names = ["Juan", "Maria", "Jose", "Ana", "Carlos", "Rosa", "Pedro", "Elena", "Miguel", "Lucia"]
                 last_names = ["Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Aquino", "Garcia", "Mendoza", "Torres", "Flores"]
                 doctors = ["Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos"]
+                times = ["09:00 AM", "10:30 AM", "01:00 PM", "03:30 PM"]
                 statuses = ["Completed", "Waiting", "Cancelled"]
 
                 batch_data = []
@@ -58,12 +68,14 @@ class DatabaseManager:
                     doctor_id = random.choice(doctors)
                     random_days = random.randint(-30, 30)
                     appointment_date = (datetime.now() + timedelta(days=random_days)).strftime("%Y-%m-%d")
+                    appointment_time = random.choice(times)
                     status = random.choice(statuses)
                     
                     batch_data.append({
                         "patient_name": patient_name,
                         "doctor_id": doctor_id,
                         "appointment_date": appointment_date,
+                        "appointment_time": appointment_time,
                         "status": status
                     })
                 
@@ -78,7 +90,7 @@ def main():
     
     try:
         db = DatabaseManager()
-        db.check_and_seed_300_records()
+        db.check_and_seed_records()
     except Exception as e:
         st.error("Please configure your Supabase secrets in Streamlit settings.")
         return
@@ -92,9 +104,7 @@ def main():
     # 1. Login Gateway
     if not st.session_state.authenticated:
         st.title("🔐 CarePoint Login Portal (Supabase Cloud)")
-        
-        # Quick helper for testing accounts during presentation
-        st.info("💡 **Test Accounts:**\n- Admin: `admin` / `password123`\n- Doctor: `doctor` / `password123`\n- Patient: `patient` / `password123`")
+        st.info("💡 **Test Accounts:**\n- Admin: `admin` / `password123`\n- Doctor: `doctor` / `password123`\n- Patient: `patient` / `password123` (or book under your own name!)")
         
         with st.form("login_form"):
             username = st.text_input("Username", value="admin")
@@ -124,56 +134,58 @@ def main():
         st.session_state.username = None
         st.rerun()
 
-    records = db.get_appointments()
-
     # --- PORTALS ---
     if role == "Admin":
         st.title("🛠️ Administrative Staff Portal")
         st.success("Connected to Supabase PostgreSQL Cloud Database!")
+        records = db.get_all_appointments()
         st.metric(label="Total Cloud Database Records", value=len(records))
         
-        with st.expander("View All Database Records"):
+        with st.expander("View All Master Records"):
             st.dataframe(records, use_container_width=True)
 
     elif role == "Doctor":
         st.title("🩺 Medical Professional / Doctor Portal")
-        st.write(f"Viewing appointment schedule and patient queues.")
+        records = db.get_all_appointments()
+        st.metric(label="Total System Appointments", value=len(records))
         
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric(label="Total System Appointments", value=len(records))
-        
-        st.subheader("📋 Active Patient Appointment Queue")
+        st.subheader("📋 Active Patient Appointment Queue (With Exact Times)")
         if records:
             st.dataframe(records, use_container_width=True)
         else:
-            st.warning("No appointments found in the database.")
+            st.warning("No appointments found.")
 
     elif role == "Patient":
         st.title("👤 Patient Self-Service Portal")
-        st.write("Welcome! You can view clinic schedules or book a new appointment below.")
+        st.write(f"Welcome, **{st.session_state.username}**. You can only view your own confidential medical appointments.")
         
-        tab1, tab2 = st.tabs(["📅 Book an Appointment", "📋 View All Records"])
+        tab1, tab2 = st.tabs(["📅 Book New Appointment", "📋 My Personal Appointments"])
         
         with tab1:
             with st.form("booking_form"):
-                st.subheader("Schedule a New Appointment")
-                p_name = st.text_input("Patient Full Name", value=st.session_state.username)
+                st.subheader("Schedule Appointment with Exact Time")
+                p_name = st.text_input("Your Full Name (e.g. Juan Santos or match your username)", value=st.session_state.username)
                 doc_choice = st.selectbox("Select Doctor", ["Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos"])
                 app_date = st.date_input("Appointment Date")
-                book_submit = st.form_submit_button("Submit Booking")
+                app_time = st.selectbox("Appointment Exact Time", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"])
+                book_submit = st.form_submit_button("Confirm Booking")
                 
                 if book_submit:
-                    success = db.add_appointment(p_name, doc_choice, str(app_date), "Waiting")
+                    success = db.add_appointment(p_name, doc_choice, str(app_date), app_time, "Waiting")
                     if success:
-                        st.success("Appointment booked successfully and synced to Supabase cloud!")
+                        st.success("Appointment booked successfully with exact time and synced to cloud!")
                         st.rerun()
                     else:
                         st.error("Failed to book appointment.")
                         
         with tab2:
-            st.subheader("Current Clinic Database Records")
-            st.dataframe(records, use_container_width=True)
+            st.subheader("Your Confidential Appointments")
+            # SECURITY FILTER: Only fetch records matching this patient's name
+            my_records = db.get_patient_appointments(st.session_state.username)
+            if my_records:
+                st.dataframe(my_records, use_container_width=True)
+            else:
+                st.info("You have no active appointments booked under this account name. Try booking one in the first tab, or ensure your username matches your patient name!")
 
 if __name__ == "__main__":
     main()
