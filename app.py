@@ -60,13 +60,17 @@ class DatabaseManager:
             return False, str(e)
 
     def check_and_seed_records(self):
-        """Seeds initial realistic records with exact times if database table is empty"""
+        """Seeds initial realistic records with 10 doctors if database table is empty or small"""
         try:
             existing = self.get_all_appointments()
-            if len(existing) < 10:
+            if len(existing) < 50:
                 first_names = ["Juan", "Maria", "Jose", "Ana", "Carlos", "Rosa", "Pedro", "Elena", "Miguel", "Lucia"]
                 last_names = ["Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Aquino", "Garcia", "Mendoza", "Torres", "Flores"]
-                doctors = ["Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos"]
+                doctors = [
+                    "Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos", 
+                    "Dr. Garcia", "Dr. Mendoza", "Dr. Torres", "Dr. Ramos", 
+                    "Dr. Lim", "Dr. Villanueva"
+                ]
                 times = ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"]
                 statuses = ["Waiting", "Completed", "Cancelled"]
 
@@ -143,12 +147,13 @@ def main():
     
     # Doctor filter widget right below the access role
     selected_doctor = "All Doctors"
+    doctors_list = [
+        "All Doctors", "Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos", 
+        "Dr. Garcia", "Dr. Mendoza", "Dr. Torres", "Dr. Ramos", "Dr. Lim", "Dr. Villanueva"
+    ]
     if role == "Doctor":
         st.sidebar.markdown("---")
-        selected_doctor = st.sidebar.selectbox(
-            "🩺 Filter by Doctor Name",
-            ["All Doctors", "Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos"]
-        )
+        selected_doctor = st.sidebar.selectbox("🩺 Filter by Doctor Name", doctors_list)
 
     st.sidebar.markdown("---")
     
@@ -182,7 +187,7 @@ def main():
     # --- DOCTOR PORTAL ---
     elif role == "Doctor":
         st.title("🩺 Medical Professional / Doctor Portal")
-        st.markdown(f"Welcome, **{st.session_state.username}**. Managing clinical schedule and patient queue.")
+        st.markdown(f"Welcome, **{st.session_state.username}**. Managing clinical schedule and patient treatments.")
         
         # Filter records based on sidebar selection
         all_records = db.get_doctor_appointments(st.session_state.username)
@@ -191,17 +196,50 @@ def main():
         else:
             doc_records = [r for r in all_records if r.get("doctor_id") == selected_doctor]
         
-        col1, col2 = st.columns(2)
-        col1.metric(label=f"Appointments ({selected_doctor})", value=len(doc_records))
-        col2.metric(label="Clinic Queue Status", value="Active 🟢")
+        # Doctor workspace tabs
+        doc_tab1, doc_tab2 = st.tabs(["📋 Patient Schedule Queue", "🩺 Consultation & Treatment Room"])
         
-        st.markdown("---")
-        st.subheader(f"🕒 Patient Schedule — {selected_doctor}")
-        
-        if doc_records:
-            st.dataframe(doc_records, use_container_width=True)
-        else:
-            st.warning(f"No appointments currently available for {selected_doctor}.")
+        with doc_tab1:
+            col1, col2 = st.columns(2)
+            col1.metric(label=f"Appointments ({selected_doctor})", value=len(doc_records))
+            col2.metric(label="Clinic Queue Status", value="Active 🟢")
+            
+            st.markdown("---")
+            st.subheader(f"🕒 Patient Schedule — {selected_doctor}")
+            
+            if doc_records:
+                st.dataframe(doc_records, use_container_width=True)
+            else:
+                st.warning(f"No appointments currently available for {selected_doctor}.")
+                
+        with doc_tab2:
+            st.subheader("🩺 Patient Consultation & Prescription Workspace")
+            st.markdown("Select a patient from your queue to examine records, write diagnosis, and issue prescriptions.")
+            
+            if doc_records:
+                patient_names_list = [f"{r['patient_name']} (Date: {r['appointment_date']} - {r['appointment_time']})" for r in doc_records]
+                selected_patient_str = st.selectbox("Select Patient in Consultation", patient_names_list)
+                
+                # Find matching record
+                chosen_record = next((r for r in doc_records if f"{r['patient_name']} (Date: {r['appointment_date']} - {r['appointment_time']})" == selected_patient_str), None)
+                
+                if chosen_record:
+                    st.info(f"**Current Patient:** {chosen_record['patient_name']} | **Assigned Doctor:** {chosen_record['doctor_id']} | **Time Slot:** {chosen_record['appointment_date']} at {chosen_record['appointment_time']}")
+                    
+                    with st.form("consultation_form"):
+                        st.markdown("### Clinical Examination Notes")
+                        chief_complaint = st.text_area("Chief Complaint / Symptoms", placeholder="Enter patient's symptoms or reason for visit...")
+                        diagnosis = st.text_area("Medical Diagnosis", placeholder="Enter official diagnosis...")
+                        prescription = st.text_area("Prescription & Treatment Plan", placeholder="Enter prescribed medications, dosage, and medical advice...")
+                        
+                        update_status = st.selectbox("Update Appointment Status", ["Completed", "Waiting", "Cancelled"])
+                        
+                        save_consultation = st.form_submit_button("💾 Save Consultation & Issue Prescription", use_container_width=True)
+                        
+                        if save_consultation:
+                            st.success(f"🎉 Consultation successfully recorded for {chosen_record['patient_name']}! Treatment plan saved.")
+            else:
+                st.warning("No patients available in your queue for consultation.")
 
     # --- PATIENT PORTAL (SECURED & ISOLATED) ---
     elif role == "Patient":
@@ -216,7 +254,7 @@ def main():
                 col_a, col_b = st.columns(2)
                 with col_a:
                     p_name = st.text_input("Full Name", value=st.session_state.username)
-                    doc_choice = st.selectbox("Select Attending Physician", ["Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos"])
+                    doc_choice = st.selectbox("Select Attending Physician", doctors_list[1:])
                 with col_b:
                     app_date = st.date_input("Preferred Date")
                     app_time = st.selectbox("Exact Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"])
