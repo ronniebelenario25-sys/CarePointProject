@@ -28,14 +28,14 @@ class DatabaseManager:
         except Exception as e:
             return []
 
-def get_doctor_appointments(self, doctor_name):
-        """Fetches all appointments or filters by doctor"""
+    def get_doctor_appointments(self, doctor_name):
+        """Fetches appointments for the doctor portal view"""
         try:
-            # For easy presentation demo, show all appointments or filter if needed
             response = self.supabase.table("appointments").select("*").order("appointment_date", desc=False).execute()
             return response.data
         except Exception as e:
             return []
+
     def get_patient_appointments(self, patient_name):
         """Security isolation: Fetches only appointments belonging to the logged-in patient"""
         try:
@@ -169,25 +169,24 @@ def main():
         else:
             st.warning("No records found in the database.")
 
-    # --- DOCTOR PORTAL (SECURED & ISOLATED) ---
+    # --- DOCTOR PORTAL ---
     elif role == "Doctor":
         st.title("🩺 Medical Professional / Doctor Portal")
-        st.markdown(f"Welcome, **{st.session_state.username}**. Managing your personal clinical schedule and patient queue.")
+        st.markdown(f"Welcome, **{st.session_state.username}**. Managing clinical schedule and patient queue.")
         
         doc_records = db.get_doctor_appointments(st.session_state.username)
         
         col1, col2 = st.columns(2)
-        col1.metric(label="Your Assigned Appointments", value=len(doc_records))
+        col1.metric(label="Scheduled Appointments", value=len(doc_records))
         col2.metric(label="Clinic Queue Status", value="Active 🟢")
         
         st.markdown("---")
-        st.subheader("🕒 Your Assigned Patient Schedule")
-        st.markdown("> *Privacy Notice: To protect patient data compliance, only appointments assigned to your professional ID are visible here.*")
+        st.subheader("🕒 Patient Schedule")
         
         if doc_records:
             st.dataframe(doc_records, use_container_width=True)
         else:
-            st.warning("No appointments currently assigned to your account name.")
+            st.warning("No appointments currently available.")
 
     # --- PATIENT PORTAL (SECURED & ISOLATED) ---
     elif role == "Patient":
