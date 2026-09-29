@@ -72,7 +72,7 @@ class DatabaseManager:
             return False, str(e)
 
     def check_and_seed_records(self):
-        """Ensures all 10 doctors have patients by checking and re-seeding if any doctor is missing"""
+        """Ensures all 10 doctors have unevenly distributed patient counts totaling around 300 records"""
         try:
             existing = self.get_all_appointments()
             doctors = [
@@ -83,8 +83,8 @@ class DatabaseManager:
             
             doctors_with_records = set(r.get("doctor_id") for r in existing)
             
-            # If any of the 10 doctors have 0 records, refresh and re-seed the database evenly
-            if len(existing) < 100 or not all(doc in doctors_with_records for doc in doctors):
+            # Re-seed if less than 200 records exist or if any doctor is missing
+            if len(existing) < 200 or not all(doc in doctors_with_records for doc in doctors):
                 try:
                     self.supabase.table("appointments").delete().neq("id", 0).execute()
                 except Exception:
@@ -97,7 +97,9 @@ class DatabaseManager:
 
                 batch_data = []
                 for doc in doctors:
-                    for _ in range(15): # 15 records per doctor = 150 total distributed records
+                    # Assign a random uneven number of patients per doctor (between 15 and 52)
+                    doc_patient_count = random.randint(15, 52)
+                    for _ in range(doc_patient_count):
                         patient_name = f"{random.choice(first_names)} {random.choice(last_names)}"
                         random_days = random.randint(-15, 15)
                         appointment_date = (datetime.now() + timedelta(days=random_days)).strftime("%Y-%m-%d")
