@@ -1,3 +1,5 @@
+import random
+from datetime import datetime, timedelta
 import streamlit as st
 from supabase import create_client, Client
 
@@ -19,12 +21,43 @@ class DatabaseManager:
             return None
 
     def get_appointments(self):
-        """Fetches records from Supabase to verify your 300 records"""
+        """Fetches records from Supabase"""
         try:
-            response = self.supabase.table("appointments").select("*", count="exact").execute()
+            response = self.supabase.table("appointments").select("*").execute()
             return response.data
         except Exception as e:
             return []
+
+    def check_and_seed_300_records(self):
+        """Automatically seeds 300 records if the table is empty"""
+        try:
+            existing = self.get_appointments()
+            if len(existing) < 10:  # If less than 10 records, auto-seed 300
+                first_names = ["Juan", "Maria", "Jose", "Ana", "Carlos", "Rosa", "Pedro", "Elena", "Miguel", "Lucia"]
+                last_names = ["Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Aquino", "Garcia", "Mendoza", "Torres", "Flores"]
+                doctors = ["Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos"]
+                statuses = ["Completed", "Waiting", "Cancelled"]
+
+                batch_data = []
+                for i in range(1, 301):
+                    patient_name = f"{random.choice(first_names)} {random.choice(last_names)}"
+                    doctor_id = random.choice(doctors)
+                    random_days = random.randint(-30, 30)
+                    appointment_date = (datetime.now() + timedelta(days=random_days)).strftime("%Y-%m-%d")
+                    status = random.choice(statuses)
+                    
+                    batch_data.append({
+                        "patient_name": patient_name,
+                        "doctor_id": doctor_id,
+                        "appointment_date": appointment_date,
+                        "status": status
+                    })
+                
+                # Insert in chunks to prevent timeout
+                for j in range(0, len(batch_data), 100):
+                    self.supabase.table("appointments").insert(batch_data[j:j+100]).execute()
+        except Exception as e:
+            pass
 
 # --- MAIN APPLICATION ---
 def main():
@@ -32,6 +65,8 @@ def main():
     
     try:
         db = DatabaseManager()
+        # Automatically make sure 300 records exist in cloud
+        db.check_and_seed_300_records()
     except Exception as e:
         st.error("Please configure your Supabase secrets in Streamlit settings.")
         return
@@ -78,7 +113,6 @@ def main():
         st.title("🛠️ Administrative Staff Portal")
         st.success("Successfully connected to Supabase PostgreSQL Cloud Database!")
         
-        # Display record count metric to prove the 300 database rows requirement
         records = db.get_appointments()
         st.metric(label="Total Cloud Database Records", value=len(records))
         
