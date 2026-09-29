@@ -196,8 +196,12 @@ def main():
         else:
             doc_records = [r for r in all_records if r.get("doctor_id") == selected_doctor]
         
-        # Doctor workspace tabs (Consultation first, Schedule second)
-        doc_tab1, doc_tab2 = st.tabs(["🩺 Consultation & Treatment Room", "📋 Patient Schedule Queue"])
+        # Doctor workspace tabs (Consultation, Queue, Completed & Paid)
+        doc_tab1, doc_tab2, doc_tab3 = st.tabs([
+            "🩺 Consultation & Treatment Room", 
+            "📋 Patient Schedule Queue", 
+            "✅ Completed & Paid Patients"
+        ])
         
         with doc_tab1:
             st.subheader("🩺 Patient Consultation & Prescription Workspace")
@@ -240,6 +244,17 @@ def main():
                 st.dataframe(doc_records, use_container_width=True)
             else:
                 st.warning(f"No appointments currently available for {selected_doctor}.")
+
+        with doc_tab3:
+            st.subheader(f"✅ Completed & Paid Records — {selected_doctor}")
+            st.markdown("Track patients who have finished their consultation and check their payment/completion status.")
+            
+            completed_records = [r for r in doc_records if r.get("status") == "Completed"]
+            
+            if completed_records:
+                st.dataframe(completed_records, use_container_width=True)
+            else:
+                st.info(f"No completed or paid patients found for {selected_doctor} yet.")
 
     # --- PATIENT PORTAL (SECURED & ISOLATED) ---
     elif role == "Patient":
