@@ -72,24 +72,32 @@ class DatabaseManager:
             return False, str(e)
 
     def check_and_seed_records(self):
-        """Seeds initial realistic records ensuring EVERY doctor gets patients distributed evenly"""
+        """Ensures all 10 doctors have patients by checking and re-seeding if any doctor is missing"""
         try:
             existing = self.get_all_appointments()
-            if len(existing) < 50:
+            doctors = [
+                "Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos", 
+                "Dr. Garcia", "Dr. Mendoza", "Dr. Torres", "Dr. Ramos", 
+                "Dr. Lim", "Dr. Villanueva"
+            ]
+            
+            doctors_with_records = set(r.get("doctor_id") for r in existing)
+            
+            # If any of the 10 doctors have 0 records, refresh and re-seed the database evenly
+            if len(existing) < 100 or not all(doc in doctors_with_records for doc in doctors):
+                try:
+                    self.supabase.table("appointments").delete().neq("id", 0).execute()
+                except Exception:
+                    pass
+                
                 first_names = ["Juan", "Maria", "Jose", "Ana", "Carlos", "Rosa", "Pedro", "Elena", "Miguel", "Lucia"]
                 last_names = ["Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Aquino", "Garcia", "Mendoza", "Torres", "Flores"]
-                doctors = [
-                    "Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos", 
-                    "Dr. Garcia", "Dr. Mendoza", "Dr. Torres", "Dr. Ramos", 
-                    "Dr. Lim", "Dr. Villanueva"
-                ]
                 times = ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"]
                 statuses = ["Waiting", "Completed", "Cancelled"]
 
                 batch_data = []
-                # Ensure every single doctor gets guaranteed records first
                 for doc in doctors:
-                    for _ in range(5): # 5 records per doctor minimum guarantee
+                    for _ in range(15): # 15 records per doctor = 150 total distributed records
                         patient_name = f"{random.choice(first_names)} {random.choice(last_names)}"
                         random_days = random.randint(-15, 15)
                         appointment_date = (datetime.now() + timedelta(days=random_days)).strftime("%Y-%m-%d")
@@ -105,25 +113,6 @@ class DatabaseManager:
                             "diagnosis": "Routine checkup and clinical evaluation normal." if status == "Completed" else None,
                             "prescription": "Paracetamol 500mg every 4 hours as needed." if status == "Completed" else None
                         })
-
-                # Fill up the rest randomly up to 300 records
-                for i in range(len(batch_data), 300):
-                    patient_name = f"{random.choice(first_names)} {random.choice(last_names)}"
-                    doctor_id = random.choice(doctors)
-                    random_days = random.randint(-15, 15)
-                    appointment_date = (datetime.now() + timedelta(days=random_days)).strftime("%Y-%m-%d")
-                    appointment_time = random.choice(times)
-                    status = random.choice(statuses)
-                    
-                    batch_data.append({
-                        "patient_name": patient_name,
-                        "doctor_id": doctor_id,
-                        "appointment_date": appointment_date,
-                        "appointment_time": appointment_time,
-                        "status": status,
-                        "diagnosis": "Routine checkup and clinical evaluation normal." if status == "Completed" else None,
-                        "prescription": "Paracetamol 500mg every 4 hours as needed." if status == "Completed" else None
-                    })
                 
                 for j in range(0, len(batch_data), 100):
                     self.supabase.table("appointments").insert(batch_data[j:j+100]).execute()
@@ -320,7 +309,7 @@ def main():
     # --- PATIENT PORTAL (SECURED & ISOLATED) ---
     elif role == "Patient":
         st.title("👤 Patient Self-Service Portal")
-        st.markdown(f"Welcome back, **{st.session_system.username if 'username' in st.session_state else 'Patient'}**.") # Safe handling
+        st.markdown(f"Welcome back, **{st.session_state.username}**. Manage your healthcare appointments safely and confidentially.")
         
         tab1, tab2 = st.tabs(["📅 Book New Appointment", "📋 My Confidential Appointments"])
         
