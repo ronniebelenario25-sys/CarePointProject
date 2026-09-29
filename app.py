@@ -59,6 +59,18 @@ class DatabaseManager:
         except Exception as e:
             return False, str(e)
 
+    def update_consultation(self, record_id, diagnosis, prescription, status):
+        """Updates appointment with consultation diagnosis, prescription, and status"""
+        try:
+            self.supabase.table("appointments").update({
+                "diagnosis": diagnosis,
+                "prescription": prescription,
+                "status": status
+            }).eq("id", record_id).execute()
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
     def check_and_seed_records(self):
         """Seeds initial realistic records with 10 doctors if database table is empty or small"""
         try:
@@ -88,7 +100,9 @@ class DatabaseManager:
                         "doctor_id": doctor_id,
                         "appointment_date": appointment_date,
                         "appointment_time": appointment_time,
-                        "status": status
+                        "status": status,
+                        "diagnosis": "Routine checkup and clinical evaluation normal." if status == "Completed" else None,
+                        "prescription": "Paracetamol 500mg every 4 hours as needed." if status == "Completed" else None
                     })
                 
                 for j in range(0, len(batch_data), 100):
@@ -196,7 +210,7 @@ def main():
         else:
             doc_records = [r for r in all_records if r.get("doctor_id") == selected_doctor]
         
-        # Doctor workspace tabs (Consultation, Queue, Completed & Paid)
+        # Doctor workspace tabs
         doc_tab1, doc_tab2, doc_tab3 = st.tabs([
             "🩺 Consultation & Treatment Room", 
             "📋 Patient Schedule Queue", 
@@ -208,27 +222,34 @@ def main():
             st.markdown("Select a patient from your queue to examine records, write diagnosis, and issue prescriptions.")
             
             if doc_records:
-                patient_names_list = [f"{r['patient_name']} (Date: {r['appointment_date']} - {r['appointment_time']})" for r in doc_records]
+                patient_names_list = [f"{r['patient_name']} (ID: {r['id']} - {r['appointment_date']} {r['appointment_time']})" for r in doc_records]
                 selected_patient_str = st.selectbox("Select Patient in Consultation", patient_names_list)
                 
-                # Find matching record
-                chosen_record = next((r for r in doc_records if f"{r['patient_name']} (Date: {r['appointment_date']} - {r['appointment_time']})" == selected_patient_str), None)
+                chosen_record = next((r for r in doc_records if f"{r['patient_name']} (ID: {r['id']} - {r['appointment_date']} {r['appointment_time']})" == selected_patient_str), None)
                 
                 if chosen_record:
                     st.info(f"**Current Patient:** {chosen_record['patient_name']} | **Assigned Doctor:** {chosen_record['doctor_id']} | **Time Slot:** {chosen_record['appointment_date']} at {chosen_record['appointment_time']}")
                     
                     with st.form("consultation_form"):
                         st.markdown("### Clinical Examination Notes")
-                        chief_complaint = st.text_area("Chief Complaint / Symptoms", placeholder="Enter patient's symptoms or reason for visit...")
-                        diagnosis = st.text_area("Medical Diagnosis", placeholder="Enter official diagnosis...")
-                        prescription = st.text_area("Prescription & Treatment Plan", placeholder="Enter prescribed medications, dosage, and medical advice...")
+                        existing_diag = chosen_record.get("diagnosis") or ""
+                        existing_presc = chosen_record.get("prescription") or ""
                         
-                        update_status = st.selectbox("Update Appointment Status", ["Completed", "Waiting", "Cancelled"])
+                        chief_complaint = st.text_area("Chief Complaint / Symptoms", placeholder="Enter patient's symptoms...")
+                        diagnosis = st.text_area("Medical Diagnosis", value=existing_diag, placeholder="Enter official diagnosis...")
+                        prescription = st.text_area("Prescription & Treatment Plan", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
+                        
+                        update_status = st.selectbox("Update Appointment Status", ["Completed", "Waiting", "Cancelled"], index=0 if chosen_record.get("status") == "Completed" else 0)
                         
                         save_consultation = st.form_submit_button("💾 Save Consultation & Issue Prescription", use_container_width=True)
                         
                         if save_consultation:
-                            st.success(f"🎉 Consultation successfully recorded for {chosen_record['patient_name']}! Treatment plan saved.")
+                            success, err = db.update_consultation(chosen_record["id"], diagnosis, prescription, update_status)
+                            if success:
+                                st.success(f"🎉 Consultation and prescription successfully saved for {chosen_record['patient_name']}!")
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to save: {err}")
             else:
                 st.warning("No patients available in your queue for consultation.")
 
@@ -247,12 +268,32 @@ def main():
 
         with doc_tab3:
             st.subheader(f"✅ Completed & Paid Records — {selected_doctor}")
-            st.markdown("Track patients who have finished their consultation and check their payment/completion status.")
+            st.markdown("Click or select a patient below to inspect their full medical record, diagnosis, and prescription.")
             
             completed_records = [r for r in doc_records if r.get("status") == "Completed"]
             
             if completed_records:
-                st.dataframe(completed_records, use_container_width=True)
+                completed_list = [f"{r['patient_name']} (ID: {r['id']} - Date: {r['appointment_date']})" for r in completed_records]
+                selected_completed_str = st.selectbox("Select Completed Patient to View Record", completed_list, key="completed_select")
+                
+                selected_comp_record = next((r for r in completed_records if f"{r['patient_name']} (ID: {r['id']} - Date: {r['appointment_date']})" == selected_completed_str), None)
+                
+                if selected_comp_record:
+                    st.markdown("---")
+                    st.success(f"📄 **Medical Record & Prescription Details for {selected_comp_record['patient_name']}**")
+                    
+                    col_c1, col_c2 = st.columns(2)
+                    with col_c1:
+                        st.markdown(f"**Patient Name:** {selected_comp_record['patient_name']}")
+                        st.markdown(f"**Attending Physician:** {selected_comp_record['doctor_id']}")
+                        st.markdown(f"**Appointment Date & Time:** {selected_comp_record['appointment_date']} at {selected_comp_record['appointment_time']}")
+                    with col_c2:
+                        st.markdown(f"**Appointment Status:** `{selected_comp_record['status']}` (Paid / Completed)")
+                        st.markdown(f"**Record ID:** #{selected_comp_record['id']}")
+                    
+                    st.markdown("### 📝 Clinical Findings & Treatment")
+                    st.info(f"**Diagnosis:**\n\n{selected_comp_record.get('diagnosis') or 'No diagnosis recorded yet.'}")
+                    st.warning(f"**Prescription / Medication Plan:**\n\n{selected_comp_record.get('prescription') or 'No prescription recorded yet.'}")
             else:
                 st.info(f"No completed or paid patients found for {selected_doctor} yet.")
 
