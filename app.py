@@ -187,7 +187,7 @@ def main():
     # --- DOCTOR PORTAL ---
     elif role == "Doctor":
         st.title("🩺 Medical Professional / Doctor Portal")
-        st.markdown(f"Welcome, **{st.session_state.username}**. Managing clinical schedule and patient treatments.")
+        st.markdown(f"Welcome, **{st.session_state.username}**. Managing clinical treatments and patient queue.")
         
         # Filter records based on sidebar selection
         all_records = db.get_doctor_appointments(st.session_state.username)
@@ -196,23 +196,10 @@ def main():
         else:
             doc_records = [r for r in all_records if r.get("doctor_id") == selected_doctor]
         
-        # Doctor workspace tabs
-        doc_tab1, doc_tab2 = st.tabs(["📋 Patient Schedule Queue", "🩺 Consultation & Treatment Room"])
+        # Doctor workspace tabs (Consultation first, Schedule second)
+        doc_tab1, doc_tab2 = st.tabs(["🩺 Consultation & Treatment Room", "📋 Patient Schedule Queue"])
         
         with doc_tab1:
-            col1, col2 = st.columns(2)
-            col1.metric(label=f"Appointments ({selected_doctor})", value=len(doc_records))
-            col2.metric(label="Clinic Queue Status", value="Active 🟢")
-            
-            st.markdown("---")
-            st.subheader(f"🕒 Patient Schedule — {selected_doctor}")
-            
-            if doc_records:
-                st.dataframe(doc_records, use_container_width=True)
-            else:
-                st.warning(f"No appointments currently available for {selected_doctor}.")
-                
-        with doc_tab2:
             st.subheader("🩺 Patient Consultation & Prescription Workspace")
             st.markdown("Select a patient from your queue to examine records, write diagnosis, and issue prescriptions.")
             
@@ -240,6 +227,19 @@ def main():
                             st.success(f"🎉 Consultation successfully recorded for {chosen_record['patient_name']}! Treatment plan saved.")
             else:
                 st.warning("No patients available in your queue for consultation.")
+
+        with doc_tab2:
+            col1, col2 = st.columns(2)
+            col1.metric(label=f"Appointments ({selected_doctor})", value=len(doc_records))
+            col2.metric(label="Clinic Queue Status", value="Active 🟢")
+            
+            st.markdown("---")
+            st.subheader(f"🕒 Patient Schedule — {selected_doctor}")
+            
+            if doc_records:
+                st.dataframe(doc_records, use_container_width=True)
+            else:
+                st.warning(f"No appointments currently available for {selected_doctor}.")
 
     # --- PATIENT PORTAL (SECURED & ISOLATED) ---
     elif role == "Patient":
