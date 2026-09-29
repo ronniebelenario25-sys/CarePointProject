@@ -140,6 +140,16 @@ def main():
     role = st.session_state.role
     st.sidebar.markdown(f"### 👤 Welcome, **{st.session_state.username}**")
     st.sidebar.markdown(f"**Access Role:** `{role}`")
+    
+    # Doctor filter widget right below the access role
+    selected_doctor = "All Doctors"
+    if role == "Doctor":
+        st.sidebar.markdown("---")
+        selected_doctor = st.sidebar.selectbox(
+            "🩺 Filter by Doctor Name",
+            ["All Doctors", "Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos"]
+        )
+
     st.sidebar.markdown("---")
     
     if st.sidebar.button("🚪 Logout", use_container_width=True):
@@ -174,19 +184,24 @@ def main():
         st.title("🩺 Medical Professional / Doctor Portal")
         st.markdown(f"Welcome, **{st.session_state.username}**. Managing clinical schedule and patient queue.")
         
-        doc_records = db.get_doctor_appointments(st.session_state.username)
+        # Filter records based on sidebar selection
+        all_records = db.get_doctor_appointments(st.session_state.username)
+        if selected_doctor == "All Doctors":
+            doc_records = all_records
+        else:
+            doc_records = [r for r in all_records if r.get("doctor_id") == selected_doctor]
         
         col1, col2 = st.columns(2)
-        col1.metric(label="Scheduled Appointments", value=len(doc_records))
+        col1.metric(label=f"Appointments ({selected_doctor})", value=len(doc_records))
         col2.metric(label="Clinic Queue Status", value="Active 🟢")
         
         st.markdown("---")
-        st.subheader("🕒 Patient Schedule")
+        st.subheader(f"🕒 Patient Schedule — {selected_doctor}")
         
         if doc_records:
             st.dataframe(doc_records, use_container_width=True)
         else:
-            st.warning("No appointments currently available.")
+            st.warning(f"No appointments currently available for {selected_doctor}.")
 
     # --- PATIENT PORTAL (SECURED & ISOLATED) ---
     elif role == "Patient":
