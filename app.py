@@ -1,5 +1,5 @@
 # --- ADMIN PORTAL ---
-    if role == "Admin":
+        if role == "Admin":
         st.title("🛠️ Administrative Control Center")
         st.markdown("System-wide master monitoring dashboard and record management connected directly to Supabase.")
         
