@@ -185,6 +185,7 @@ def main():
         st.session_state.username = None
         st.rerun()
 
+    
     # --- 3. ROLE-BASED DASHBOARDS ---
     
     # --- ADMIN PORTAL ---
@@ -203,10 +204,24 @@ def main():
         
         admin_tab1, admin_tab2, admin_tab3 = st.tabs(["📋 Master Appointment Table", "✏️ Edit / Delete Records", "➕ Add New Record"])
         
-        with admin_tab1:
+with admin_tab1:
             st.subheader("📋 Master Appointment Database")
-            if records:
-                st.dataframe(records, use_container_width=True)
+            if records: # (or whatever variable name holds your appointment list/dataframe)
+                st.dataframe(
+                    records,
+                    use_container_width=True,
+                    column_config={
+                        "id": st.column_config.NumberColumn("ID", width="small"),
+                        "patient_name": st.column_config.TextColumn("Patient Name", width="medium"),
+                        "doctor_id": st.column_config.TextColumn("Attending Doctor", width="medium"),
+                        "appointment_date": st.column_config.TextColumn("Date", width="small"),
+                        "appointment_time": st.column_config.TextColumn("Time", width="small"),
+                        "status": st.column_config.TextColumn("Status", width="small"),
+                        "diagnosis": st.column_config.TextColumn("Diagnosis", width="large"),
+                        "prescription": st.column_config.TextColumn("Prescription", width="large")
+                    },
+                    hide_index=True
+                )
             else:
                 st.warning("No records found in the database.")
                 
