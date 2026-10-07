@@ -119,9 +119,61 @@ class DatabaseManager:
         except Exception as e:
             pass
 
+# --- MODERN STYLING & NATIVE TABLE RENDERING ---
+def apply_custom_css():
+    st.markdown("""
+        <style>
+        .main {
+            background-color: #f8fafc;
+        }
+        .metric-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+def render_modern_table(records):
+    """Renders records using Streamlit's native data grid with customized column configurations"""
+    if not records:
+        st.warning("No records found.")
+        return
+
+    import pandas as pd
+    df = pd.DataFrame(records)
+    
+    # Ensure proper column ordering if they exist
+    cols_order = [c for c in ['id', 'patient_name', 'doctor_id', 'appointment_date', 'appointment_time', 'status', 'diagnosis', 'prescription'] if c in df.columns]
+    df = df[cols_order]
+
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "id": st.column_config.NumberColumn("ID", format="%d"),
+            "patient_name": st.column_config.TextColumn("Patient Name"),
+            "doctor_id": st.column_config.TextColumn("Doctor"),
+            "appointment_date": st.column_config.DateColumn("Date"),
+            "appointment_time": st.column_config.TextColumn("Time"),
+            "status": st.column_config.SelectboxColumn(
+                "Status",
+                options=["Waiting", "Completed", "Cancelled"],
+                required=True
+            ),
+            "diagnosis": st.column_config.TextColumn("Diagnosis"),
+            "prescription": st.column_config.TextColumn("Prescription")
+        }
+    )
+
 # --- MAIN APPLICATION UI ---
 def main():
     st.set_page_config(page_title="CarePoint Clinic System", page_icon="💊", layout="wide")
+    apply_custom_css()
     
     try:
         db = DatabaseManager()
@@ -130,7 +182,6 @@ def main():
         st.error("⚠️ Please configure your Supabase credentials in Streamlit Cloud Secrets.")
         return
 
-    # Session State Initialization
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
         st.session_state.role = None
@@ -205,27 +256,11 @@ def main():
         
         with admin_tab1:
             st.subheader("📋 Master Appointment Database")
-            if records:
-                st.dataframe(
-                    records,
-                    use_container_width=True,
-                    column_config={
-                        "id": st.column_config.NumberColumn("ID", width="small"),
-                        "patient_name": st.column_config.TextColumn("Patient Name", width="medium"),
-                        "doctor_id": st.column_config.TextColumn("Doctor", width="medium"),
-                        "appointment_date": st.column_config.DateColumn("Date", width="small"),
-                        "appointment_time": st.column_config.TextColumn("Time", width="small"),
-                        "status": st.column_config.TextColumn("Status", width="small"),
-                        "diagnosis": st.column_config.TextColumn("Diagnosis", width="large"),
-                        "prescription": st.column_config.TextColumn("Prescription", width="large"),
-                    }
-                )
-            else:
-                st.warning("No records found in the database.")
+            render_modern_table(records)
                 
         with admin_tab2:
             st.subheader("✏️ Edit or Delete Specific Records")
-            st.markdown("Select a record ID below to update details or permanently remove useless entries.")
+            st.markdown("Select a record ID below to update details or permanently remove records.")
             
             if records:
                 record_options = [f"ID: {r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']}" for r in records]
@@ -364,28 +399,11 @@ def main():
             
             st.markdown("---")
             st.subheader(f"🕒 Patient Schedule — {selected_doctor}")
-            
-            if doc_records:
-                st.dataframe(
-                    doc_records,
-                    use_container_width=True,
-                    column_config={
-                        "id": st.column_config.NumberColumn("ID", width="small"),
-                        "patient_name": st.column_config.TextColumn("Patient Name", width="medium"),
-                        "doctor_id": st.column_config.TextColumn("Doctor", width="medium"),
-                        "appointment_date": st.column_config.DateColumn("Date", width="small"),
-                        "appointment_time": st.column_config.TextColumn("Time", width="small"),
-                        "status": st.column_config.TextColumn("Status", width="small"),
-                        "diagnosis": st.column_config.TextColumn("Diagnosis", width="large"),
-                        "prescription": st.column_config.TextColumn("Prescription", width="large"),
-                    }
-                )
-            else:
-                st.warning(f"No appointments currently available for {selected_doctor}.")
+            render_modern_table(doc_records)
 
         with doc_tab3:
             st.subheader(f"✅ Completed & Paid Records — {selected_doctor}")
-            st.markdown("Click or select a patient below to inspect their full medical record, diagnosis, and prescription.")
+            st.markdown("Select a patient below to inspect their full medical record, diagnosis, and prescription.")
             
             completed_records = [r for r in doc_records if r.get("status") == "Completed"]
             
@@ -445,23 +463,7 @@ def main():
         with tab2:
             st.subheader("Your Personal Medical Appointments")
             my_records = db.get_patient_appointments(st.session_state.username)
-            if my_records:
-                st.dataframe(
-                    my_records,
-                    use_container_width=True,
-                    column_config={
-                        "id": st.column_config.NumberColumn("ID", width="small"),
-                        "patient_name": st.column_config.TextColumn("Patient Name", width="medium"),
-                        "doctor_id": st.column_config.TextColumn("Doctor", width="medium"),
-                        "appointment_date": st.column_config.DateColumn("Date", width="small"),
-                        "appointment_time": st.column_config.TextColumn("Time", width="small"),
-                        "status": st.column_config.TextColumn("Status", width="small"),
-                        "diagnosis": st.column_config.TextColumn("Diagnosis", width="large"),
-                        "prescription": st.column_config.TextColumn("Prescription", width="large"),
-                    }
-                )
-            else:
-                st.info("You have no scheduled appointments under this account name.")
+            render_modern_table(my_records)
 
 if __name__ == "__main__":
     main()
