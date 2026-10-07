@@ -367,4 +367,76 @@ def main():
             st.subheader(f"🕒 Patient Schedule — {selected_doctor}")
             
             if doc_records:
-                st.dataframe(doc_records, use
+                st.dataframe(doc_records, use_container_width=True)
+            else:
+                st.warning(f"No appointments currently available for {selected_doctor}.")
+
+        with doc_tab3:
+            st.subheader(f"✅ Completed & Paid Records — {selected_doctor}")
+            st.markdown("Click or select a patient below to inspect their full medical record, diagnosis, and prescription.")
+            
+            completed_records = [r for r in doc_records if r.get("status") == "Completed"]
+            
+            if completed_records:
+                completed_list = [f"{r['patient_name']} (ID: {r['id']} - Date: {r['appointment_date']})" for r in completed_records]
+                selected_completed_str = st.selectbox("Select Completed Patient to View Record", completed_list, key="completed_select")
+                
+                selected_comp_record = next((r for r in completed_records if f"{r['patient_name']} (ID: {r['id']} - Date: {r['appointment_date']})" == selected_completed_str), None)
+                
+                if selected_comp_record:
+                    st.markdown("---")
+                    st.success(f"📄 **Medical Record & Prescription Details for {selected_comp_record['patient_name']}**")
+                    
+                    col_c1, col_c2 = st.columns(2)
+                    with col_c1:
+                        st.markdown(f"**Patient Name:** {selected_comp_record['patient_name']}")
+                        st.markdown(f"**Attending Physician:** {selected_comp_record['doctor_id']}")
+                        st.markdown(f"**Appointment Date & Time:** {selected_comp_record['appointment_date']} at {selected_comp_record['appointment_time']}")
+                    with col_c2:
+                        st.markdown(f"**Appointment Status:** `{selected_comp_record['status']}` (Paid / Completed)")
+                        st.markdown(f"**Record ID:** #{selected_comp_record['id']}")
+                    
+                    st.markdown("### 📝 Clinical Findings & Treatment")
+                    st.info(f"**Diagnosis:**\n\n{selected_comp_record.get('diagnosis') or 'No diagnosis recorded yet.'}")
+                    st.warning(f"**Prescription / Medication Plan:**\n\n{selected_comp_record.get('prescription') or 'No prescription recorded yet.'}")
+            else:
+                st.info(f"No completed or paid patients found for {selected_doctor} yet.")
+
+    # --- PATIENT PORTAL ---
+    elif role == "Patient":
+        st.title("👤 Patient Self-Service Portal")
+        st.markdown(f"Welcome back, **{st.session_state.username}**. Manage your healthcare appointments safely and confidentially.")
+        
+        tab1, tab2 = st.tabs(["📅 Book New Appointment", "📋 My Confidential Appointments"])
+        
+        with tab1:
+            st.subheader("Schedule a New Clinic Visit")
+            with st.form("booking_form"):
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    p_name = st.text_input("Full Name", value=st.session_state.username)
+                    doc_choice = st.selectbox("Select Attending Physician", doctors_list[1:])
+                with col_b:
+                    app_date = st.date_input("Preferred Date")
+                    app_time = st.selectbox("Exact Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"])
+                
+                book_submit = st.form_submit_button("Confirm & Secure Booking", use_container_width=True)
+                
+                if book_submit:
+                    success, err_msg = db.add_appointment(p_name, doc_choice, app_date, app_time, "Waiting")
+                    if success:
+                        st.success("🎉 Appointment successfully booked and synchronized with the cloud database!")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to submit booking. Supabase Error: {err_msg}")
+                        
+        with tab2:
+            st.subheader("Your Personal Medical Appointments")
+            my_records = db.get_patient_appointments(st.session_state.username)
+            if my_records:
+                st.dataframe(my_records, use_container_width=True)
+            else:
+                st.info("You have no scheduled appointments under this account name.")
+
+if __name__ == "__main__":
+    main()
