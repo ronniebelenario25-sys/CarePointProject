@@ -1,5 +1,5 @@
 # --- ADMIN PORTAL ---
-if role == "Admin":
+    if role == "Admin":
         st.title("🛠️ Administrative Control Center")
         st.markdown("System-wide master monitoring dashboard and record management connected directly to Supabase.")
         
@@ -30,6 +30,7 @@ if role == "Admin":
                 record_options = [f"ID: {r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']}" for r in records]
                 selected_rec_str = st.selectbox("Select Record to Modify", record_options)
                 
+                # Extract ID from selection string
                 selected_id = int(selected_rec_str.split("|")[0].replace("ID:", "").strip())
                 current_rec = next((r for r in records if r['id'] == selected_id), None)
                 
