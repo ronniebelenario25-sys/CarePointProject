@@ -1,105 +1,128 @@
-# --- ADMIN PORTAL ---
-    if role == "Admin":
-        st.title("🛠️ Administrative Control Center")
-        st.markdown("System-wide master monitoring dashboard and record management connected directly to Supabase.")
-        
-        records = db.get_all_appointments()
-        
-        m1, m2, m3 = st.columns(3)
-        m1.metric(label="Total Database Records", value=len(records))
-        m2.metric(label="Active Queue Status", value="Online 🟢")
-        m3.metric(label="System Security", value="Role-Based Protected")
-        
-        st.markdown("---")
-        
-        # Admin Action Tabs
-        admin_tab1, admin_tab2, admin_tab3 = st.tabs(["📋 Master Appointment Table", "✏️ Edit / Delete Records", "➕ Add New Record"])
-        
-        with admin_tab1:
-            st.subheader("📋 Master Appointment Database")
-            if records:
-                st.dataframe(records, use_container_width=True)
-            else:
-                st.warning("No records found in the database.")
-                
-        with admin_tab2:
-            st.subheader("✏️ Edit or Delete Specific Records")
-            st.markdown("Select a record ID below to update details or permanently remove useless entries.")
-            
-            if records:
-                record_options = [f"ID: {r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']}" for r in records]
-                selected_rec_str = st.selectbox("Select Record to Modify", record_options)
-                
-                # Extract ID from selection string
-                selected_id = int(selected_rec_str.split("|")[0].replace("ID:", "").strip())
-                current_rec = next((r for r in records if r['id'] == selected_id), None)
-                
-                if current_rec:
-                    with st.form("admin_edit_form"):
-                        col_e1, col_e2 = st.columns(2)
-                        with col_e1:
-                            edit_patient = st.text_input("Patient Name", value=current_rec['patient_name'])
-                            edit_doctor = st.selectbox("Doctor ID", doctors_list[1:], index=doctors_list[1:].index(current_rec['doctor_id']) if current_rec['doctor_id'] in doctors_list[1:] else 0)
-                            edit_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=current_rec['appointment_date'])
-                        with col_e2:
-                            edit_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(current_rec['appointment_time']) if current_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
-                            edit_status = st.selectbox("Status", ["Waiting", "Completed", "Cancelled"], index=["Waiting", "Completed", "Cancelled"].index(current_rec['status']) if current_rec['status'] in ["Waiting", "Completed", "Cancelled"] else 0)
-                        
-                        edit_diag = st.text_area("Diagnosis", value=current_rec.get('diagnosis') or "")
-                        edit_presc = st.text_area("Prescription", value=current_rec.get('prescription') or "")
-                        
-                        col_btn1, col_btn2 = st.columns(2)
-                        update_btn = col_btn1.form_submit_button("💾 Save Changes", use_container_width=True)
-                        delete_btn = col_btn2.form_submit_button("🗑️ Delete Record", use_container_width=True)
-                        
-                        if update_btn:
-                            try:
-                                db.supabase.table("appointments").update({
-                                    "patient_name": edit_patient,
-                                    "doctor_id": edit_doctor,
-                                    "appointment_date": edit_date,
-                                    "appointment_time": edit_time,
-                                    "status": edit_status,
-                                    "diagnosis": edit_diag,
-                                    "prescription": edit_presc
-                                }).eq("id", selected_id).execute()
-                                st.success(f"Record #{selected_id} updated successfully!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error updating record: {e}")
-                                
-                        if delete_btn:
-                            try:
-                                db.supabase.table("appointments").delete().eq("id", selected_id).execute()
-                                st.success(f"Record #{selected_id} deleted successfully!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error deleting record: {e}")
-            else:
-                st.warning("No records available to edit or delete.")
+import streamlit as st
+from supabase import create_client, Client
 
-        with admin_tab3:
-            st.subheader("➕ Add a New Master Appointment Record")
-            with st.form("admin_add_form"):
-                col_a1, col_a2 = st.columns(2)
-                with col_a1:
-                    new_patient = st.text_input("Patient Full Name")
-                    new_doctor = st.selectbox("Assign Doctor", doctors_list[1:], key="add_doc")
-                with col_a2:
-                    new_date = st.date_input("Appointment Date")
-                    new_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], key="add_time")
-                
-                new_status = st.selectbox("Initial Status", ["Waiting", "Completed", "Cancelled"], key="add_status")
-                
-                add_submit = st.form_submit_button("➕ Insert New Record", use_container_width=True)
-                
-                if add_submit:
-                    if new_patient.strip():
-                        success, err = db.add_appointment(new_patient, new_doctor, str(new_date), new_time, new_status)
-                        if success:
-                            st.success(f"Successfully added record for {new_patient}!")
-                            st.rerun()
-                        else:
-                            st.error(f"Failed to add record: {err}")
-                    else:
-                        st.error("Please enter a valid patient name.")
+# --- 1. PAGE CONFIGURATION ---
+st.set_page_config(
+    page_title="CarePoint Clinic System",
+    page_icon="🏥",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- 2. SUPABASE CONNECTION SETUP ---
+# Ensure you have set these in your Streamlit secrets (.streamlit/secrets.toml)
+@st.cache_resource
+def init_supabase() -> Client:
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
+supabase = init_supabase()
+
+# --- 3. SESSION STATE INITIALIZATION ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "user_role" not in st.session_state:
+    st.session_state.user_role = None
+if "username" not in st.session_state:
+    st.session_state.username = ""
+
+# --- 4. AUTHENTICATION & LOGIN GATEWAY ---
+def login_page():
+    st.title("🏥 CarePoint Clinic System - Login")
+    st.markdown("Please enter your credentials to access your dashboard.")
+
+    with st.form("login_form"):
+        username = st.text_input("Username or Email")
+        password = st.text_input("Password", type="password")
+        role = st.selectbox("Select Role", ["Admin", "Doctor", "Patient"])
+        submit_btn = st.form_submit_button("Login")
+
+        if submit_btn:
+            # Basic validation logic (can be tied to your database users table)
+            if username and password:
+                st.session_state.authenticated = True
+                st.session_state.user_role = role
+                st.session_state.username = username
+                st.success(f"Welcome back, {username}!")
+                st.rerun()
+            else:
+                st.error("Please enter both username and password.")
+
+# --- 5. ADMIN DASHBOARD ---
+def admin_dashboard():
+    st.title("🛡️ Admin Dashboard")
+    st.markdown("System-wide monitoring and master record management.")
+
+    # Fetch master appointments from Supabase
+    try:
+        response = supabase.table("appointments").select("*").execute()
+        appointments = response.data
+    except Exception as e:
+        st.error(f"Error fetching data from database: {e}")
+        appointments = []
+
+    st.subheader("Master Appointment Records")
+    
+    if not appointments:
+        st.info("No appointment records found in the database.")
+    else:
+        # Stable standard dataframe view
+        st.dataframe(
+            appointments,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    # Logout handler inside sidebar
+    with st.sidebar:
+        st.write(f"Logged in as: **{st.session_state.username}** ({st.session_state.user_role})")
+        if st.button("Logout"):
+            st.session_state.authenticated = False
+            st.session_state.user_role = None
+            st.session_state.username = ""
+            st.rerun()
+
+# --- 6. DOCTOR DASHBOARD (Placeholder) ---
+def doctor_dashboard():
+    st.title("🩺 Doctor Portal")
+    st.write("Welcome to the Doctor consultation and queue management view.")
+    
+    with st.sidebar:
+        st.write(f"Logged in as: **{st.session_state.username}** ({st.session_state.user_role})")
+        if st.button("Logout"):
+            st.session_state.authenticated = False
+            st.session_state.user_role = None
+            st.session_state.username = ""
+            st.rerun()
+
+# --- 7. PATIENT DASHBOARD (Placeholder) ---
+def patient_dashboard():
+    st.title("👤 Patient Portal")
+    st.write("Welcome to your self-service booking and medical history dashboard.")
+    
+    with st.sidebar:
+        st.write(f"Logged in as: **{st.session_state.username}** ({st.session_state.user_role})")
+        if st.button("Logout"):
+            st.session_state.authenticated = False
+            st.session_state.user_role = None
+            st.session_state.username = ""
+            st.rerun()
+
+# --- 8. MAIN ROUTING CONTROLLER ---
+def main():
+    if not st.session_state.authenticated:
+        login_page()
+    else:
+        role = st.session_state.user_role
+        if role == "Admin":
+            admin_dashboard()
+        elif role == "Doctor":
+            doctor_dashboard()
+        elif role == "Patient":
+            patient_dashboard()
+        else:
+            st.error("Invalid role assigned.")
+
+if __name__ == "__main__":
+    main()
