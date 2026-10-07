@@ -119,9 +119,152 @@ class DatabaseManager:
         except Exception as e:
             pass
 
+# --- MODERN UI STYLING & HELPER FUNCTIONS ---
+def apply_custom_css():
+    st.markdown("""
+        <style>
+        /* Global Font & Background Styling */
+        .main {
+            background-color: #f8fafc;
+        }
+        
+        /* Modern Card Containers */
+        .metric-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            text-align: center;
+        }
+
+        /* Modern Table Styling via HTML */
+        .modern-table-container {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+        .modern-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            text-align: left;
+            color: #1e293b;
+        }
+        .modern-table th {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-weight: 600;
+            padding: 14px 16px;
+            border-bottom: 2px solid #e2e8f0;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.05em;
+        }
+        .modern-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+        .modern-table tr:hover {
+            background-color: #f8fafc;
+        }
+        
+        /* Status Badges */
+        .badge-completed {
+            background-color: #d1fae5;
+            color: #065f46;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 12px;
+            display: inline-block;
+        }
+        .badge-waiting {
+            background-color: #fef3c7;
+            color: #92400e;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 12px;
+            display: inline-block;
+        }
+        .badge-cancelled {
+            background-color: #fee2e2;
+            color: #991b1b;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 12px;
+            display: inline-block;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+def render_modern_table(records):
+    """Renders records into a sleek, modern HTML table with custom status badges"""
+    if not records:
+        st.warning("No records found.")
+        return
+
+    html = """
+    <div class="modern-table-container">
+        <table class="modern-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Patient Name</th>
+                    <th>Doctor</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th>Diagnosis</th>
+                    <th>Prescription</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+    
+    for r in records:
+        status = r.get('status', 'Waiting')
+        if status == 'Completed':
+            badge_class = 'badge-completed'
+        elif status == 'Cancelled':
+            badge_class = 'badge-cancelled'
+        else:
+            badge_class = 'badge-waiting'
+            
+        diag = r.get('diagnosis') or '<span style="color: #94a3b8; font-style: italic;">None</span>'
+        presc = r.get('prescription') or '<span style="color: #94a3b8; font-style: italic;">None</span>'
+        
+        html += f"""
+                <tr>
+                    <td><b>#{r.get('id')}</b></td>
+                    <td><b>{r.get('patient_name')}</b></td>
+                    <td>{r.get('doctor_id')}</td>
+                    <td>{r.get('appointment_date')}</td>
+                    <td>{r.get('appointment_time')}</td>
+                    <td><span class="{badge_class}">{status}</span></td>
+                    <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{r.get('diagnosis')}">{diag}</td>
+                    <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{r.get('prescription')}">{presc}</td>
+                </tr>
+        """
+        
+    html += """
+            </tbody>
+        </table>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
 # --- MAIN APPLICATION UI ---
 def main():
     st.set_page_config(page_title="CarePoint Clinic System", page_icon="💊", layout="wide")
+    apply_custom_css()
     
     try:
         db = DatabaseManager()
@@ -205,27 +348,11 @@ def main():
         
         with admin_tab1:
             st.subheader("📋 Master Appointment Database")
-            if records:
-                st.dataframe(
-                    records,
-                    use_container_width=True,
-                    column_config={
-                        "id": st.column_config.NumberColumn("ID", width="small"),
-                        "patient_name": st.column_config.TextColumn("Patient Name", width="medium"),
-                        "doctor_id": st.column_config.TextColumn("Doctor", width="medium"),
-                        "appointment_date": st.column_config.DateColumn("Date", width="small"),
-                        "appointment_time": st.column_config.TextColumn("Time", width="small"),
-                        "status": st.column_config.TextColumn("Status", width="small"),
-                        "diagnosis": st.column_config.TextColumn("Diagnosis", width="large"),
-                        "prescription": st.column_config.TextColumn("Prescription", width="large"),
-                    }
-                )
-            else:
-                st.warning("No records found in the database.")
+            render_modern_table(records)
                 
         with admin_tab2:
             st.subheader("✏️ Edit or Delete Specific Records")
-            st.markdown("Select a record ID below to update details or permanently remove useless entries.")
+            st.markdown("Select a record ID below to update details or permanently remove records.")
             
             if records:
                 record_options = [f"ID: {r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']}" for r in records]
@@ -364,28 +491,11 @@ def main():
             
             st.markdown("---")
             st.subheader(f"🕒 Patient Schedule — {selected_doctor}")
-            
-            if doc_records:
-                st.dataframe(
-                    doc_records,
-                    use_container_width=True,
-                    column_config={
-                        "id": st.column_config.NumberColumn("ID", width="small"),
-                        "patient_name": st.column_config.TextColumn("Patient Name", width="medium"),
-                        "doctor_id": st.column_config.TextColumn("Doctor", width="medium"),
-                        "appointment_date": st.column_config.DateColumn("Date", width="small"),
-                        "appointment_time": st.column_config.TextColumn("Time", width="small"),
-                        "status": st.column_config.TextColumn("Status", width="small"),
-                        "diagnosis": st.column_config.TextColumn("Diagnosis", width="large"),
-                        "prescription": st.column_config.TextColumn("Prescription", width="large"),
-                    }
-                )
-            else:
-                st.warning(f"No appointments currently available for {selected_doctor}.")
+            render_modern_table(doc_records)
 
         with doc_tab3:
             st.subheader(f"✅ Completed & Paid Records — {selected_doctor}")
-            st.markdown("Click or select a patient below to inspect their full medical record, diagnosis, and prescription.")
+            st.markdown("Select a patient below to inspect their full medical record, diagnosis, and prescription.")
             
             completed_records = [r for r in doc_records if r.get("status") == "Completed"]
             
@@ -445,23 +555,7 @@ def main():
         with tab2:
             st.subheader("Your Personal Medical Appointments")
             my_records = db.get_patient_appointments(st.session_state.username)
-            if my_records:
-                st.dataframe(
-                    my_records,
-                    use_container_width=True,
-                    column_config={
-                        "id": st.column_config.NumberColumn("ID", width="small"),
-                        "patient_name": st.column_config.TextColumn("Patient Name", width="medium"),
-                        "doctor_id": st.column_config.TextColumn("Doctor", width="medium"),
-                        "appointment_date": st.column_config.DateColumn("Date", width="small"),
-                        "appointment_time": st.column_config.TextColumn("Time", width="small"),
-                        "status": st.column_config.TextColumn("Status", width="small"),
-                        "diagnosis": st.column_config.TextColumn("Diagnosis", width="large"),
-                        "prescription": st.column_config.TextColumn("Prescription", width="large"),
-                    }
-                )
-            else:
-                st.info("You have no scheduled appointments under this account name.")
+            render_modern_table(my_records)
 
 if __name__ == "__main__":
     main()
