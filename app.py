@@ -546,7 +546,7 @@ def main():
             render_modern_table(patient_records)
 
         with tab3:
-            st.subheader(f"✏️ Edit or Cancel Appointments for {selected_active_patient}")
+            st.subheader(f"✏️ Edit, Cancel, or Delete Appointments for {selected_active_patient}")
             if patient_records:
                 pat_options = [f"ID: {r['id']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']} {r['appointment_time']} | Status: {r['status']}" for r in patient_records]
                 selected_pat_rec_str = st.selectbox("Select Appointment to Modify", pat_options, key="pat_edit_select")
@@ -565,9 +565,10 @@ def main():
                             edit_p_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(curr_pat_rec['appointment_time']) if curr_pat_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
                             edit_p_status = st.selectbox("Status", ["Waiting", "Cancelled"], index=["Waiting", "Cancelled"].index(curr_pat_rec['status']) if curr_pat_rec['status'] in ["Waiting", "Cancelled"] else 0)
                         
-                        col_pb1, col_pb2 = st.columns(2)
-                        save_p_edit = col_pb1.form_submit_button("💾 Save Preferences", use_container_width=True)
-                        cancel_p_booking = col_pb2.form_submit_button("❌ Cancel Booking", use_container_width=True)
+                        col_pb1, col_pb2, col_pb3 = st.columns(3)
+                        save_p_edit = col_pb1.form_submit_button("💾 Save", use_container_width=True)
+                        cancel_p_booking = col_pb2.form_submit_button("❌ Cancel", use_container_width=True)
+                        delete_p_booking = col_pb3.form_submit_button("🗑️ Delete", use_container_width=True)
                         
                         if save_p_edit:
                             success, err = db.update_appointment(sel_pat_id, edit_p_name, edit_p_doc, edit_p_date, edit_p_time, edit_p_status, curr_pat_rec.get('diagnosis'), curr_pat_rec.get('prescription'))
@@ -584,6 +585,14 @@ def main():
                                 st.rerun()
                             else:
                                 st.error(f"Error: {err}")
+
+                        if delete_p_booking:
+                            try:
+                                db.supabase.table("appointments").delete().eq("id", sel_pat_id).execute()
+                                st.success(f"Appointment #{sel_pat_id} permanently deleted!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error deleting record: {e}")
             else:
                 st.info(f"No appointments found for {selected_active_patient}.")
 
