@@ -37,10 +37,12 @@ class DatabaseManager:
             return []
 
     def get_patient_appointments(self, username):
-        """Fetches appointments belonging to the logged-in patient username flexibly"""
+        """Fetches appointments belonging to the logged-in patient flexibly"""
         try:
-            response = self.supabase.table("appointments").select("*").ilike("patient_name", f"%{username}%").order("appointment_date", desc=False).execute()
-            return response.data
+            response = self.supabase.table("appointments").select("*").execute()
+            all_records = response.data
+            matched = [r for r in all_records if str(username).lower() in str(r.get('patient_name', '')).lower()]
+            return matched
         except Exception as e:
             return []
 
@@ -448,7 +450,6 @@ def main():
             with st.form("booking_form"):
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    # Locked to logged-in username so bookings always match the user account
                     p_name = st.text_input("Patient Name", value=st.session_state.username)
                     doc_choice = st.selectbox("Select Attending Physician", doctors_list[1:])
                 with col_b:
