@@ -123,13 +123,13 @@ class DatabaseManager:
         except Exception as e:
             return False, str(e)
 
-    def update_consultation(self, record_id, diagnosis, prescription, status):
-        """Updates appointment with consultation diagnosis, prescription, and status"""
+    def update_consultation(self, record_id, diagnosis, prescription):
+        """Updates appointment with diagnosis and prescription, automatically moving status to Pending Payment"""
         try:
             self.supabase.table("appointments").update({
                 "diagnosis": diagnosis,
                 "prescription": prescription,
-                "status": status
+                "status": "Pending Payment"
             }).eq("id", record_id).execute()
             return True, None
         except Exception as e:
@@ -156,7 +156,7 @@ class DatabaseManager:
                 first_names = ["Juan", "Maria", "Jose", "Ana", "Carlos", "Rosa", "Pedro", "Elena", "Miguel", "Lucia"]
                 last_names = ["Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Aquino", "Garcia", "Mendoza", "Torres", "Flores"]
                 times = ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"]
-                statuses = ["Waiting", "Completed", "Cancelled"]
+                statuses = ["Waiting", "Pending Payment", "Completed", "Cancelled"]
 
                 batch_data = []
                 for doc in doctors:
@@ -174,8 +174,8 @@ class DatabaseManager:
                             "appointment_date": appointment_date,
                             "appointment_time": appointment_time,
                             "status": status,
-                            "diagnosis": "Routine checkup and clinical evaluation normal." if status == "Completed" else None,
-                            "prescription": "Paracetamol 500mg every 4 hours as needed." if status == "Completed" else None
+                            "diagnosis": "Routine checkup and clinical evaluation normal." if status in ["Completed", "Pending Payment"] else None,
+                            "prescription": "Paracetamol 500mg every 4 hours as needed." if status in ["Completed", "Pending Payment"] else None
                         })
                 
                 for j in range(0, len(batch_data), 100):
@@ -230,7 +230,7 @@ def render_modern_table(records):
             "appointment_time": st.column_config.TextColumn("Time"),
             "status": st.column_config.SelectboxColumn(
                 "Status",
-                options=["Waiting", "Completed", "Cancelled"],
+                options=["Waiting", "Pending Payment", "Completed", "Cancelled"],
                 required=True
             ),
             "diagnosis": st.column_config.TextColumn("Diagnosis"),
@@ -371,22 +371,24 @@ def main():
     
     # --- ADMIN PORTAL ---
     if role == "Admin":
-        st.title("🛠️ Administrative Control Center")
-        st.markdown("System-wide master monitoring dashboard and record management connected directly to Supabase.")
+        st.title("🛠️ Administrative Control Center (Cashier & Master Management)")
+        st.markdown("System-wide master monitoring dashboard, cashier payment verification, and record management.")
         
         records = db.get_all_appointments()
         users_list = db.get_all_users()
         
+        pending_payment_count = len([r for r in records if r.get("status") == "Pending Payment"])
+        
         m1, m2, m3 = st.columns(3)
         m1.metric(label="Total Database Records", value=len(records))
-        m2.metric(label="Registered Accounts", value=len(users_list))
-        m3.metric(label="System Security", value="Role-Based Protected")
+        m2.metric(label="Pending Payments / Cashier Queue", value=pending_payment_count)
+        m3.metric(label="Registered Accounts", value=len(users_list))
         
         st.markdown("---")
         
         admin_tab1, admin_tab2, admin_tab3, admin_tab4 = st.tabs([
             "📋 Master Appointment Table", 
-            "✏️ Edit / Delete Records", 
+            "💵 Cashier & Edit Records", 
             "👥 Manage User Accounts",
             "➕ Add New Record"
         ])
@@ -396,12 +398,12 @@ def main():
             render_modern_table(records)
                 
         with admin_tab2:
-            st.subheader("✏️ Edit or Delete Specific Records")
-            st.markdown("Select a record ID below to update details or permanently remove records.")
+            st.subheader("💵 Cashier Payment Verification & Record Editing")
+            st.markdown("Select a patient appointment to verify payment, mark as **Completed**, or update details.")
             
             if records:
-                record_options = [f"ID: {r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']}" for r in records]
-                selected_rec_str = st.selectbox("Select Record to Modify", record_options)
+                record_options = [f"ID: {r['id']} | Patient: {r['patient_name']} | Status: {r['status']} | Dr: {r['doctor_id']}" for r in records]
+                selected_rec_str = st.selectbox("Select Record for Cashier / Modification", record_options)
                 
                 selected_id = int(selected_rec_str.split("|")[0].replace("ID:", "").strip())
                 current_rec = next((r for r in records if r['id'] == selected_id), None)
@@ -415,13 +417,13 @@ def main():
                             edit_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=current_rec['appointment_date'])
                         with col_e2:
                             edit_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(current_rec['appointment_time']) if current_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
-                            edit_status = st.selectbox("Status", ["Waiting", "Completed", "Cancelled"], index=["Waiting", "Completed", "Cancelled"].index(current_rec['status']) if current_rec['status'] in ["Waiting", "Completed", "Cancelled"] else 0)
+                            edit_status = st.selectbox("Status", ["Waiting", "Pending Payment", "Completed", "Cancelled"], index=["Waiting", "Pending Payment", "Completed", "Cancelled"].index(current_rec['status']) if current_rec['status'] in ["Waiting", "Pending Payment", "Completed", "Cancelled"] else 0)
                         
                         edit_diag = st.text_area("Diagnosis", value=current_rec.get('diagnosis') or "")
                         edit_presc = st.text_area("Prescription", value=current_rec.get('prescription') or "")
                         
                         col_btn1, col_btn2 = st.columns(2)
-                        update_btn = col_btn1.form_submit_button("💾 Save Changes", use_container_width=True)
+                        update_btn = col_btn1.form_submit_button("💾 Save Changes & Mark Paid", use_container_width=True)
                         delete_btn = col_btn2.form_submit_button("🗑️ Delete Record", use_container_width=True)
                         
                         if update_btn:
@@ -440,7 +442,7 @@ def main():
                             except Exception as e:
                                 st.error(f"Error deleting record: {e}")
             else:
-                st.warning("No records available to edit or delete.")
+                st.warning("No records available to edit.")
 
         with admin_tab3:
             st.subheader("👥 Manage Registered User Accounts")
@@ -502,7 +504,7 @@ def main():
                     new_date = st.date_input("Appointment Date")
                     new_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], key="add_time")
                 
-                new_status = st.selectbox("Initial Status", ["Waiting", "Completed", "Cancelled"], key="add_status")
+                new_status = st.selectbox("Initial Status", ["Waiting", "Pending Payment", "Completed", "Cancelled"], key="add_status")
                 
                 add_submit = st.form_submit_button("➕ Insert New Record", use_container_width=True)
                 
@@ -527,12 +529,12 @@ def main():
         doc_tab1, doc_tab2, doc_tab3 = st.tabs([
             "🩺 Consultation & Treatment Room", 
             "📋 Patient Schedule Queue", 
-            "✅ Completed & Paid Patients"
+            "✅ Treated Patients (Pending Payment)"
         ])
         
         with doc_tab1:
             st.subheader("🩺 Patient Consultation & Prescription Workspace")
-            st.markdown("Select a patient from your queue to examine records, write diagnosis, and issue prescriptions.")
+            st.markdown("Select a patient from your queue to examine records, write diagnosis, and issue prescriptions. *Note: Saving moves the patient to the cashier payment queue.*")
             
             if doc_records:
                 patient_names_list = [f"{r['patient_name']} (ID: {r['id']} - {r['appointment_date']} {r['appointment_time']})" for r in doc_records]
@@ -552,14 +554,12 @@ def main():
                         diagnosis = st.text_area("Medical Diagnosis", value=existing_diag, placeholder="Enter official diagnosis...")
                         prescription = st.text_area("Prescription & Treatment Plan", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
                         
-                        update_status = st.selectbox("Update Appointment Status", ["Completed", "Waiting", "Cancelled"], index=0 if chosen_record.get("status") == "Completed" else 0)
-                        
-                        save_consultation = st.form_submit_button("💾 Save Consultation & Issue Prescription", use_container_width=True)
+                        save_consultation = st.form_submit_button("💾 Save Consultation & Send to Cashier", use_container_width=True)
                         
                         if save_consultation:
-                            success, err = db.update_consultation(chosen_record["id"], diagnosis, prescription, update_status)
+                            success, err = db.update_consultation(chosen_record["id"], diagnosis, prescription)
                             if success:
-                                st.success(f"🎉 Consultation and prescription successfully saved for {chosen_record['patient_name']}!")
+                                st.success(f"🎉 Consultation saved for {chosen_record['patient_name']}! Patient sent to cashier for payment verification.")
                                 st.rerun()
                             else:
                                 st.error(f"Failed to save: {err}")
@@ -576,35 +576,15 @@ def main():
             render_modern_table(doc_records)
 
         with doc_tab3:
-            st.subheader(f"✅ Completed & Paid Records — {selected_doctor}")
-            st.markdown("Select a patient below to inspect their full medical record, diagnosis, and prescription.")
+            st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
+            st.markdown("Patients who have completed their consultation and are waiting to pay at the admin desk.")
             
-            completed_records = [r for r in doc_records if r.get("status") == "Completed"]
+            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
             
-            if completed_records:
-                completed_list = [f"{r['patient_name']} (ID: {r['id']} - Date: {r['appointment_date']})" for r in completed_records]
-                selected_completed_str = st.selectbox("Select Completed Patient to View Record", completed_list, key="completed_select")
-                
-                selected_comp_record = next((r for r in completed_records if f"{r['patient_name']} (ID: {r['id']} - Date: {r['appointment_date']})" == selected_completed_str), None)
-                
-                if selected_comp_record:
-                    st.markdown("---")
-                    st.success(f"📄 **Medical Record & Prescription Details for {selected_comp_record['patient_name']}**")
-                    
-                    col_c1, col_c2 = st.columns(2)
-                    with col_c1:
-                        st.markdown(f"**Patient Name:** {selected_comp_record['patient_name']}")
-                        st.markdown(f"**Attending Physician:** {selected_comp_record['doctor_id']}")
-                        st.markdown(f"**Appointment Date & Time:** {selected_comp_record['appointment_date']} at {selected_comp_record['appointment_time']}")
-                    with col_c2:
-                        st.markdown(f"**Appointment Status:** `{selected_comp_record['status']}` (Paid / Completed)")
-                        st.markdown(f"**Record ID:** #{selected_comp_record['id']}")
-                    
-                    st.markdown("### 📝 Clinical Findings & Treatment")
-                    st.info(f"**Diagnosis:**\n\n{selected_comp_record.get('diagnosis') or 'No diagnosis recorded yet.'}")
-                    st.warning(f"**Prescription / Medication Plan:**\n\n{selected_comp_record.get('prescription') or 'No prescription recorded yet.'}")
+            if pending_records:
+                render_modern_table(pending_records)
             else:
-                st.info(f"No completed or paid patients found for {selected_doctor} yet.")
+                st.info(f"No patients currently waiting for payment with {selected_doctor}.")
 
     # --- PATIENT PORTAL ---
     elif role == "Patient":
