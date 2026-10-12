@@ -241,11 +241,14 @@ def render_modern_table(records):
 def render_users_table(users):
     """Renders user accounts table"""
     if not users:
-        st.warning("No users found.")
+        st.warning("No user accounts found matching query.")
         return
 
     import pandas as pd
     df = pd.DataFrame(users)
+    
+    cols = [c for c in ['id', 'username', 'password', 'role'] if c in df.columns]
+    df = df[cols]
     
     st.dataframe(
         df,
@@ -254,6 +257,7 @@ def render_users_table(users):
         column_config={
             "id": st.column_config.NumberColumn("User ID", format="%d"),
             "username": st.column_config.TextColumn("Username"),
+            "password": st.column_config.TextColumn("Password"),
             "role": st.column_config.TextColumn("Role")
         }
     )
@@ -440,14 +444,42 @@ def main():
 
         with admin_tab3:
             st.subheader("👥 Manage Registered User Accounts")
-            st.markdown("View all user accounts in Supabase and permanently delete accounts if needed.")
+            st.markdown("Filter, search, and manage registered patient, doctor, and admin accounts in Supabase.")
             
-            render_users_table(users_list)
+            search_query = st.text_input("🔍 Search Accounts by Username or User ID", placeholder="Type username or user ID to filter...").strip().lower()
+            
+            # Filter users based on search bar query
+            if search_query:
+                filtered_users = [
+                    u for u in users_list 
+                    if search_query in str(u.get("username", "")).lower() 
+                    or search_query in str(u.get("id", "")).lower()
+                ]
+            else:
+                filtered_users = users_list
+                
+            acc_tab1, acc_tab2, acc_tab3 = st.tabs(["👤 Patient Accounts", "🩺 Doctor Accounts", "🛠️ Admin Accounts"])
+            
+            patients = [u for u in filtered_users if str(u.get("role")).lower() == "patient"]
+            doctors = [u for u in filtered_users if str(u.get("role")).lower() == "doctor"]
+            admins = [u for u in filtered_users if str(u.get("role")).lower() == "admin"]
+            
+            with acc_tab1:
+                st.markdown(f"### 👤 Registered Patients ({len(patients)})")
+                render_users_table(patients)
+                
+            with acc_tab2:
+                st.markdown(f"### 🩺 Registered Doctors ({len(doctors)})")
+                render_users_table(doctors)
+
+            with acc_tab3:
+                st.markdown(f"### 🛠️ Administrative Accounts ({len(admins)})")
+                render_users_table(admins)
             
             st.markdown("---")
             st.subheader("🗑️ Delete User Account")
-            if users_list:
-                user_options = [f"ID: {u['id']} | Username: {u['username']} | Role: {u['role']}" for u in users_list]
+            if filtered_users:
+                user_options = [f"ID: {u['id']} | Username: {u['username']} | Role: {u['role']}" for u in filtered_users]
                 selected_user_str = st.selectbox("Select User Account to Delete", user_options)
                 
                 sel_user_id = int(selected_user_str.split("|")[0].replace("ID:", "").strip())
@@ -461,7 +493,7 @@ def main():
                     except Exception as e:
                         st.error(f"Error deleting user account: {e}")
             else:
-                st.info("No user accounts found.")
+                st.info("No matching user accounts found.")
 
         with admin_tab4:
             st.subheader("➕ Add a New Master Appointment Record")
