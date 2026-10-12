@@ -11,14 +11,16 @@ class DatabaseManager:
         self.supabase: Client = create_client(url, key)
 
     def authenticate(self, username, password):
-        """Queries the Supabase users table for secure role-based login"""
+        """Queries the Supabase users table for secure role-based login and returns role and user ID"""
         try:
-            response = self.supabase.table("users").select("role").eq("username", username).eq("password", password).execute()
+            response = self.supabase.table("users").select("id, role").eq("username", username).eq("password", password).execute()
             data = response.data
-            return data[0]["role"] if data else None
+            if data:
+                return data[0]["role"], data[0]["id"]
+            return None, None
         except Exception as e:
             st.error(f"Database connection error: {e}")
-            return None
+            return None, None
 
     def register_patient(self, username, password):
         """Registers a new patient account and creates an initial profile entry in appointments"""
@@ -242,6 +244,7 @@ def main():
         st.session_state.authenticated = False
         st.session_state.role = None
         st.session_state.username = None
+        st.session_state.user_id = None
 
     # --- 1. LOGIN GATEWAY & REGISTRATION ---
     if not st.session_state.authenticated:
@@ -262,11 +265,12 @@ def main():
                     submit = st.form_submit_button("Access Portal", use_container_width=True)
                     
                     if submit:
-                        role = db.authenticate(username, password)
+                        role, user_id = db.authenticate(username, password)
                         if role:
                             st.session_state.authenticated = True
                             st.session_state.role = role
                             st.session_state.username = username
+                            st.session_state.user_id = user_id
                             st.success(f"Authenticated successfully as {role}!")
                             st.rerun()
                         else:
@@ -294,7 +298,8 @@ def main():
 
     # --- 2. SIDEBAR NAVIGATION ---
     role = st.session_state.role
-    st.sidebar.markdown(f"### 👤 Welcome, **{st.session_state.username}**")
+    st.sidebar.markdown(f"### 👤 Patient Name: **{st.session_state.username}**")
+    st.sidebar.markdown(f"**Account ID:** `#{st.session_state.get('user_id', 'N/A')}`")
     st.sidebar.markdown(f"**Access Role:** `{role}`")
     
     selected_doctor = "All Doctors"
@@ -325,6 +330,7 @@ def main():
         st.session_state.authenticated = False
         st.session_state.role = None
         st.session_state.username = None
+        st.session_state.user_id = None
         st.rerun()
 
     # --- 3. ROLE-BASED DASHBOARDS ---
