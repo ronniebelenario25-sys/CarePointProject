@@ -11,7 +11,7 @@ class DatabaseManager:
         self.supabase: Client = create_client(url, key)
 
     def authenticate(self, username, password):
-        """Queries the Supabase users table for secure login and fetches the user ID, role, and full name"""
+        """Queries the Supabase users table for secure login and fetches user ID, role, and full name"""
         try:
             response = self.supabase.table("users").select("*").eq("username", username).eq("password", password).execute()
             data = response.data
@@ -27,7 +27,7 @@ class DatabaseManager:
             return None, None, None
 
     def register_patient(self, username, password, full_name):
-        """Registers a new patient account with a unique username and a separate patient full name"""
+        """Registers a new patient account with both a unique username and a separate patient full name"""
         try:
             existing = self.supabase.table("users").select("username").eq("username", username).execute()
             if existing.data:
@@ -39,18 +39,17 @@ class DatabaseManager:
                 "role": "Patient",
                 "full_name": full_name
             }
-            try:
-                self.supabase.table("users").insert(user_data).execute()
-            except Exception:
-                user_data_basic = {"username": username, "password": password, "role": "Patient"}
-                self.supabase.table("users").insert(user_data_basic).execute()
-                
+            # Insert including full_name directly
+            self.supabase.table("users").insert(user_data).execute()
             return True, None
         except Exception as e:
+            # If the full_name column doesn't exist in Supabase yet, give a helpful tip
+            if "full_name" in str(e):
+                return False, "Database error: Please add a 'full_name' text column to your Supabase 'users' table."
             return False, str(e)
 
     def delete_user_completely(self, user_id, username):
-        """Permanently deletes a user account (username & password) and all their associated appointments"""
+        """Permanently deletes a user account and all their associated appointments"""
         try:
             self.supabase.table("users").delete().eq("id", user_id).execute()
             self.supabase.table("users").delete().eq("username", username).execute()
@@ -253,7 +252,7 @@ def render_users_table(users):
     import pandas as pd
     df = pd.DataFrame(users)
     
-    cols = [c for c in ['id', 'username', 'password', 'role'] if c in df.columns]
+    cols = [c for c in ['id', 'username', 'password', 'role', 'full_name'] if c in df.columns]
     df = df[cols]
     
     st.dataframe(
@@ -264,7 +263,8 @@ def render_users_table(users):
             "id": st.column_config.NumberColumn("User ID", format="%d"),
             "username": st.column_config.TextColumn("Username"),
             "password": st.column_config.TextColumn("Password"),
-            "role": st.column_config.TextColumn("Role")
+            "role": st.column_config.TextColumn("Role"),
+            "full_name": st.column_config.TextColumn("Full Name")
         }
     )
 
@@ -325,7 +325,7 @@ def main():
                 with st.form("register_form"):
                     new_user = st.text_input("Choose Unique Login Username (e.g., patient_user)")
                     new_pass = st.text_input("Choose Password", type="password")
-                    new_fullname = st.text_input("Patient Full Name (e.g., John Doe)")
+                    new_fullname = st.text_input("Patient Full Name (e.g., Ronnie B.)")
                     reg_submit = st.form_submit_button("Register Account", use_container_width=True)
                     
                     if reg_submit:
@@ -383,7 +383,6 @@ def main():
             selected_label = st.sidebar.selectbox("Demo Patient Switcher (ID Filtered)", patient_labels_list)
             selected_active_patient = patient_options_map[selected_label]
         else:
-            # Look up this user's full name from users_list, fallback to session full_name or username
             current_user_obj = next((u for u in users_list if str(u.get('username')) == str(st.session_state.username)), {})
             selected_active_patient = current_user_obj.get('full_name') or st.session_state.get('full_name') or st.session_state.username
             st.sidebar.info(f"**Viewing Dashboard for:**\n`{selected_active_patient}` (ID #{st.session_state.get('user_id')})")
@@ -609,7 +608,7 @@ def main():
             st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
             st.markdown("Patients who have completed their consultation and are waiting to pay at the admin desk.")
             
-            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
+            pending_records = [r for r in doc_records if r.get("status"] == "Pending Payment"]
             
             if pending_records:
                 render_modern_table(pending_records)
@@ -619,18 +618,31 @@ def main():
     # --- PATIENT PORTAL ---
     elif role == "Patient":
         st.title("👤 Patient Self-Service Portal")
-        st.markdown(f"Welcome, **{selected_active_patient}**.")
+        
+        # Get the real full name for the logged in user
+        logged_in_user_obj = next((u for u in users_list if str(u.get('username')) == str(st.session_state.username)), {})
+        my_real_full_name = logged_in_user_obj.get('full_name') or st.session_state.get('full_name') or st.session_state.username
+        
+        if st.session_state.username == "patient":
+            welcome_display_name = selected_active_patient
+            default_booking_name = selected_active_patient
+        else:
+            welcome_display_name = my_real_full_name
+            default_booking_name = my_real_full_name
+            selected_active_patient = my_real_full_name
+
+        st.markdown(f"Welcome, **{welcome_display_name}**.")
         
         patient_records = [r for r in all_records if r.get('patient_name') == selected_active_patient]
         
         tab1, tab2, tab3 = st.tabs(["📅 Book New Appointment", "📋 My Confidential Appointments", "✏️ Edit My Appointments"])
         
         with tab1:
-            st.subheader(f"Schedule a New Visit for {selected_active_patient}")
+            st.subheader(f"Schedule a New Visit for {default_booking_name}")
             with st.form("booking_form"):
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    p_name = st.text_input("Patient Full Name", value=selected_active_patient)
+                    p_name = st.text_input("Patient Full Name", value=default_booking_name)
                     doc_choice = st.selectbox("Select Attending Physician", doctors_list[1:])
                 with col_b:
                     app_date = st.date_input("Preferred Date")
