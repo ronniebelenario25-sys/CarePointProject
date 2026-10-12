@@ -411,7 +411,7 @@ def main():
             st.subheader(f"✅ Completed & Paid Records — {selected_doctor}")
             st.markdown("Select a patient below to inspect their full medical record, diagnosis, and prescription.")
             
-            completed_records = [r for r in doc_records if r.get("status"] == "Completed"]
+            completed_records = [r for r in doc_records if r.get("status") == "Completed"]
             
             if completed_records:
                 completed_list = [f"{r['patient_name']} (ID: {r['id']} - Date: {r['appointment_date']})" for r in completed_records]
@@ -450,7 +450,6 @@ def main():
             with st.form("booking_form"):
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    # Fully flexible input so you can type any patient name you want for your booking
                     p_name = st.text_input("Patient Full Name", value="Juan Dela Cruz")
                     doc_choice = st.selectbox("Select Attending Physician", doctors_list[1:])
                 with col_b:
@@ -470,7 +469,6 @@ def main():
         with tab2:
             st.subheader("Your Personal Medical Appointments")
             
-            # Fetch all appointments from the database so you can filter/search them just like the doctor portal view
             all_db_records = db.get_all_appointments()
             unique_patients = sorted(list(set(r.get('patient_name') for r in all_db_records if r.get('patient_name'))))
             
