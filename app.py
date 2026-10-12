@@ -36,11 +36,10 @@ class DatabaseManager:
         except Exception as e:
             return []
 
-    def get_patient_appointments(self, patient_identifier):
-        """Security isolation: Fetches appointments belonging to the logged-in user or matching patient name"""
+    def get_patient_appointments(self, username):
+        """Fetches appointments belonging to the logged-in patient username flexibly"""
         try:
-            # Queries records where either the patient name matches the username or contains it
-            response = self.supabase.table("appointments").select("*").or_(f"patient_name.ilike.%{patient_identifier}%,patient_name.eq.{patient_identifier}").order("appointment_date", desc=False).execute()
+            response = self.supabase.table("appointments").select("*").ilike("patient_name", f"%{username}%").order("appointment_date", desc=False).execute()
             return response.data
         except Exception as e:
             return []
@@ -124,7 +123,6 @@ class DatabaseManager:
 def apply_custom_css():
     st.markdown("""
         <style>
-        /* Force sharp font rendering, solid black color, and bold text for titles and labels above tables */
         h1, h2, h3, h4, h5, h6, .stMarkdown p, label {
             color: #000000 !important;
             font-weight: 700 !important;
@@ -450,7 +448,8 @@ def main():
             with st.form("booking_form"):
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    p_name = st.text_input("Full Name", value=st.session_state.username)
+                    # Locked to logged-in username so bookings always match the user account
+                    p_name = st.text_input("Patient Name", value=st.session_state.username)
                     doc_choice = st.selectbox("Select Attending Physician", doctors_list[1:])
                 with col_b:
                     app_date = st.date_input("Preferred Date")
