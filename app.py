@@ -344,17 +344,34 @@ def main():
         selected_doctor = st.sidebar.selectbox("🩺 Filter by Doctor Name", doctors_list)
 
     all_records = db.get_all_appointments()
-    patient_names_pool = sorted(list(set(r.get('patient_name') for r in all_records if r.get('patient_name'))))
-    if not patient_names_pool:
-        patient_names_pool = ["Juan Santos", "Maria Reyes", "Patient"]
+    users_list = db.get_all_users()
+    
+    # Create distinct options combining ID and username/name so identical names with different IDs are unique
+    patient_options_map = {}
+    for u in users_list:
+        if str(u.get('role')).lower() == 'patient':
+            display_label = f"ID #{u.get('id')} - {u.get('username')}"
+            patient_options_map[display_label] = u.get('username')
+            
+    for r in all_records:
+        p_name = r.get('patient_name')
+        if p_name and not any(p_name == val for val in patient_options_map.values()):
+            display_label = f"Appointment - {p_name}"
+            patient_options_map[display_label] = p_name
+
+    patient_labels_list = sorted(list(patient_options_map.keys()))
+    if not patient_labels_list:
+        patient_labels_list = ["ID #1 - Patient"]
+        patient_options_map["ID #1 - Patient"] = "Patient"
 
     if role == "Patient":
         st.sidebar.markdown("---")
         if st.session_state.username == "patient":
-            selected_active_patient = st.sidebar.selectbox("Patients", patient_names_pool)
+            selected_label = st.sidebar.selectbox("Demo Patient Switcher (ID Filtered)", patient_labels_list)
+            selected_active_patient = patient_options_map[selected_label]
         else:
             selected_active_patient = st.session_state.username
-            st.sidebar.info(f"**Viewing Dashboard for:**\n`{selected_active_patient}`")
+            st.sidebar.info(f"**Viewing Dashboard for:**\n`{selected_active_patient}` (ID #{st.session_state.get('user_id')})")
 
     st.sidebar.markdown("---")
     
@@ -373,9 +390,8 @@ def main():
         st.markdown("System-wide master monitoring dashboard, cashier payment verification, and record management.")
         
         records = db.get_all_appointments()
-        users_list = db.get_all_users()
         
-        pending_payment_count = len([r for r in records if r.get("status") == "Pending Payment"])
+        pending_payment_count = len([r for r in records if r.get("status"] == "Pending Payment"])
         
         m1, m2, m3 = st.columns(3)
         m1.metric(label="Total Database Records", value=len(records))
