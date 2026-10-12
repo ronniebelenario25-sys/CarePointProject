@@ -24,8 +24,8 @@ class DatabaseManager:
             st.error(f"Database connection error: {e}")
             return None, None
 
-    def register_patient(self, username, password):
-        """Registers a new patient account in the users table without creating automatic dummy appointments"""
+    def register_patient(self, username, password, full_name):
+        """Registers a new patient account with a unique username and a separate patient full name"""
         try:
             existing = self.supabase.table("users").select("username").eq("username", username).execute()
             if existing.data:
@@ -34,10 +34,17 @@ class DatabaseManager:
             user_data = {
                 "username": username,
                 "password": password,
-                "role": "Patient"
+                "role": "Patient",
+                "full_name": full_name
             }
-            self.supabase.table("users").insert(user_data).execute()
-            
+            # If your users table doesn't have a 'full_name' column yet, it will fall back gracefully or you can add it to Supabase
+            try:
+                self.supabase.table("users").insert(user_data).execute()
+            except Exception:
+                # Fallback if full_name column isn't created in Supabase table yet
+                user_data_basic = {"username": username, "password": password, "role": "Patient"}
+                self.supabase.table("users").insert(user_data_basic).execute()
+                
             return True, None
         except Exception as e:
             return False, str(e)
@@ -310,22 +317,23 @@ def main():
                             
             with auth_tab2:
                 st.subheader("New Patient Registration")
-                st.markdown("Create an account externally. It will automatically sync with Supabase and populate across Admin, Doctor, and Patient portals.")
+                st.markdown("Create an account with a unique username and separate patient full name.")
                 
                 with st.form("register_form"):
-                    new_user = st.text_input("Choose Patient Username / Full Name")
+                    new_user = st.text_input("Choose Unique Login Username (e.g., ronnie_b)")
                     new_pass = st.text_input("Choose Password", type="password")
+                    new_fullname = st.text_input("Patient Full Name (e.g., Ronnie L. Belenario)")
                     reg_submit = st.form_submit_button("Register Account", use_container_width=True)
                     
                     if reg_submit:
-                        if new_user.strip() and new_pass.strip():
-                            success, err = db.register_patient(new_user.strip(), new_pass.strip())
+                        if new_user.strip() and new_pass.strip() and new_fullname.strip():
+                            success, err = db.register_patient(new_user.strip(), new_pass.strip(), new_fullname.strip())
                             if success:
-                                st.success(f"🎉 Patient account '{new_user}' created successfully! You can now log in.")
+                                st.success(f"🎉 Patient account '{new_user}' created successfully for {new_fullname}! You can now log in.")
                             else:
                                 st.error(err)
                         else:
-                            st.error("Please fill in both fields.")
+                            st.error("Please fill in all fields.")
         return
 
     # --- 2. SIDEBAR NAVIGATION ---
@@ -333,7 +341,6 @@ def main():
     st.sidebar.markdown(f"### 👤 User: **{st.session_state.username}**")
     st.sidebar.markdown(f"**Account ID:** `#{st.session_state.get('user_id', 'N/A')}`")
     
-    # Display "Master Patient" for demo account, normal role for others
     display_role_label = "Master Patient" if st.session_state.username == "patient" else role
     st.sidebar.markdown(f"**Access Role:** `{display_role_label}`")
     
@@ -352,7 +359,7 @@ def main():
     patient_options_map = {}
     for u in users_list:
         if str(u.get('role')).lower() == 'patient':
-            display_label = f"ID #{u.get('id')} - {u.get('username')}"
+            display_label = f"ID #{u.get('id')} - Username: {u.get('username')}"
             patient_options_map[display_label] = u.get('username')
             
     for r in all_records:
@@ -607,7 +614,7 @@ def main():
         st.title("👤 Patient Self-Service Portal")
         st.markdown(f"Welcome, **{selected_active_patient}**.")
         
-        patient_records = [r for r in all_records if r.get('patient_name') == selected_active_patient]
+        patient_records = [r for r in all_records if r.get('patient_name'] == selected_active_patient]
         
         tab1, tab2, tab3 = st.tabs(["📅 Book New Appointment", "📋 My Confidential Appointments", "✏️ Edit My Appointments"])
         
