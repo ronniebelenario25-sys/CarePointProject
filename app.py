@@ -20,6 +20,38 @@ class DatabaseManager:
             st.error(f"Database connection error: {e}")
             return None
 
+    def register_patient(self, username, password):
+        """Registers a new patient account and creates an initial profile entry in appointments"""
+        try:
+            # Check if username already exists
+            existing = self.supabase.table("users").select("username").eq("username", username).execute()
+            if existing.data:
+                return False, "Username already exists. Please choose another."
+            
+            # Insert into users table
+            user_data = {
+                "username": username,
+                "password": password,
+                "role": "Patient"
+            }
+            self.supabase.table("users").insert(user_data).execute()
+            
+            # Also insert an initial welcome/profile appointment record so they appear in dropdowns immediately
+            profile_data = {
+                "patient_name": username,
+                "doctor_id": "Dr. Smith",
+                "appointment_date": datetime.now().strftime("%Y-%m-%d"),
+                "appointment_time": "08:00 AM",
+                "status": "Waiting",
+                "diagnosis": "Account successfully registered.",
+                "prescription": "None"
+            }
+            self.supabase.table("appointments").insert(profile_data).execute()
+            
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
     def get_all_appointments(self):
         """Fetches all master records (Restricted to Admin only)"""
         try:
@@ -47,11 +79,9 @@ class DatabaseManager:
     def add_appointment(self, patient_name, doctor_id, appointment_date, appointment_time, status):
         """Adds a new appointment with double-booking prevention checks"""
         try:
-            # Check if this doctor already has an active booking at the same date and time
             conflict_check = self.supabase.table("appointments").select("*").eq("doctor_id", doctor_id).eq("appointment_date", str(appointment_date)).eq("appointment_time", appointment_time).execute()
             
             if conflict_check.data:
-                # Filter out cancelled appointments from blocking time slots
                 active_conflicts = [r for r in conflict_check.data if r.get("status") != "Cancelled"]
                 if active_conflicts:
                     return False, f"⚠️ Time Conflict: {doctor_id} already has an appointment at {appointment_time} on {appointment_date}. Please choose another slot."
@@ -216,31 +246,53 @@ def main():
         st.session_state.role = None
         st.session_state.username = None
 
-    # --- 1. LOGIN GATEWAY ---
+    # --- 1. LOGIN GATEWAY & REGISTRATION ---
     if not st.session_state.authenticated:
         st.markdown("<h1 style='text-align: center; color: #000000;'>💊 CarePoint Clinic Management System</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #000000; font-weight: 600;'>Secure Cloud-Powered Healthcare & Queue Portal</p>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns([1, 1.2, 1])
         with col2:
-            st.info("💡 **Presentation Login Hints:**\n- Admin: `admin` / `password123`\n- Doctor: `doctor` / `password123`\n- Patient: `patient` / `password123`")
+            auth_tab1, auth_tab2 = st.tabs(["🔐 Login", "📝 Create Patient Account"])
             
-            with st.form("login_form"):
-                st.subheader("Account Login")
-                username = st.text_input("Username", value="admin")
-                password = st.text_input("Password", type="password", value="password123")
-                submit = st.form_submit_button("Access Portal", use_container_width=True)
+            with auth_tab1:
+                st.info("💡 **Presentation Login Hints:**\n- Admin: `admin` / `password123`\n- Doctor: `doctor` / `password123`\n- Patient: `patient` / `password123`")
                 
-                if submit:
-                    role = db.authenticate(username, password)
-                    if role:
-                        st.session_state.authenticated = True
-                        st.session_state.role = role
-                        st.session_state.username = username
-                        st.success(f"Authenticated successfully as {role}!")
-                        st.rerun()
-                    else:
-                        st.error("Invalid username or password. Please try again.")
+                with st.form("login_form"):
+                    st.subheader("Account Login")
+                    username = st.text_input("Username", value="admin")
+                    password = st.text_input("Password", type="password", value="password123")
+                    submit = st.form_submit_button("Access Portal", use_container_width=True)
+                    
+                    if submit:
+                        role = db.authenticate(username, password)
+                        if role:
+                            st.session_state.authenticated = True
+                            st.session_state.role = role
+                            st.session_state.username = username
+                            st.success(f"Authenticated successfully as {role}!")
+                            st.rerun()
+                        else:
+                            st.error("Invalid username or password. Please try again.")
+                            
+            with auth_tab2:
+                st.subheader("New Patient Registration")
+                st.markdown("Create an account externally. It will automatically sync with Supabase and populate across Admin, Doctor, and Patient portals.")
+                
+                with st.form("register_form"):
+                    new_user = st.text_input("Choose Patient Username / Full Name")
+                    new_pass = st.text_input("Choose Password", type="password")
+                    reg_submit = st.form_submit_button("Register Account", use_container_width=True)
+                    
+                    if reg_submit:
+                        if new_user.strip() and new_pass.strip():
+                            success, err = db.register_patient(new_user.strip(), new_pass.strip())
+                            if success:
+                                st.success(f"🎉 Patient account '{new_user}' created successfully! You can now log in.")
+                            else:
+                                st.error(err)
+                        else:
+                            st.error("Please fill in both fields.")
         return
 
     # --- 2. SIDEBAR NAVIGATION ---
@@ -257,7 +309,6 @@ def main():
         st.sidebar.markdown("---")
         selected_doctor = st.sidebar.selectbox("🩺 Filter by Doctor Name", doctors_list)
 
-    # Fetch all records for sidebar dropdown filtering
     all_records = db.get_all_appointments()
     patient_names_pool = sorted(list(set(r.get('patient_name') for r in all_records if r.get('patient_name'))))
     if not patient_names_pool:
