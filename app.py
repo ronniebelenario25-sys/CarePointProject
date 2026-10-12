@@ -346,7 +346,7 @@ def main():
     all_records = db.get_all_appointments()
     users_list = db.get_all_users()
     
-    # Create distinct options combining ID and username/name so identical names with different IDs are unique
+    # Combine patient usernames and appointment patient names so demo switcher includes newly booked/registered names
     patient_options_map = {}
     for u in users_list:
         if str(u.get('role')).lower() == 'patient':
@@ -391,7 +391,7 @@ def main():
         
         records = db.get_all_appointments()
         
-        pending_payment_count = len([r for r in records if r.get("status"] == "Pending Payment"])
+        pending_payment_count = len([r for r in records if r.get("status") == "Pending Payment"])
         
         m1, m2, m3 = st.columns(3)
         m1.metric(label="Total Database Records", value=len(records))
@@ -593,7 +593,7 @@ def main():
             st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
             st.markdown("Patients who have completed their consultation and are waiting to pay at the admin desk.")
             
-            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
+            pending_records = [r for r in doc_records if r.get("status"] == "Pending Payment"]
             
             if pending_records:
                 render_modern_table(pending_records)
