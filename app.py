@@ -23,12 +23,10 @@ class DatabaseManager:
     def register_patient(self, username, password):
         """Registers a new patient account and creates an initial profile entry in appointments"""
         try:
-            # Check if username already exists
             existing = self.supabase.table("users").select("username").eq("username", username).execute()
             if existing.data:
                 return False, "Username already exists. Please choose another."
             
-            # Insert into users table
             user_data = {
                 "username": username,
                 "password": password,
@@ -36,7 +34,6 @@ class DatabaseManager:
             }
             self.supabase.table("users").insert(user_data).execute()
             
-            # Also insert an initial welcome/profile appointment record so they appear in dropdowns immediately
             profile_data = {
                 "patient_name": username,
                 "doctor_id": "Dr. Smith",
@@ -314,10 +311,15 @@ def main():
     if not patient_names_pool:
         patient_names_pool = ["Juan Santos", "Maria Reyes", "Patient"]
 
-    selected_active_patient = "Patient"
+    # If logged in as the generic "patient" demo account, allow sidebar switching. 
+    # If logged in as an independently registered patient account, lock it to their exact username.
     if role == "Patient":
         st.sidebar.markdown("---")
-        selected_active_patient = st.sidebar.selectbox("👤 Act as Patient Name", patient_names_pool)
+        if st.session_state.username == "patient":
+            selected_active_patient = st.sidebar.selectbox("Patients", patient_names_pool)
+        else:
+            selected_active_patient = st.session_state.username
+            st.sidebar.info(f"**Viewing Dashboard for:**\n`{selected_active_patient}`")
 
     st.sidebar.markdown("---")
     
@@ -484,7 +486,7 @@ def main():
             st.subheader(f"✅ Completed & Paid Records — {selected_doctor}")
             st.markdown("Select a patient below to inspect their full medical record, diagnosis, and prescription.")
             
-            completed_records = [r for r in doc_records if r.get("status") == "Completed"]
+            completed_records = [r for r in doc_records if r.get("status"] == "Completed"]
             
             if completed_records:
                 completed_list = [f"{r['patient_name']} (ID: {r['id']} - Date: {r['appointment_date']})" for r in completed_records]
@@ -514,7 +516,7 @@ def main():
     # --- PATIENT PORTAL ---
     elif role == "Patient":
         st.title("👤 Patient Self-Service Portal")
-        st.markdown(f"Welcome, acting as **{selected_active_patient}**. Manage your healthcare appointments safely and confidentially.")
+        st.markdown(f"Welcome, **{selected_active_patient}**. Manage your healthcare appointments safely and confidentially.")
         
         patient_records = [r for r in all_records if r.get('patient_name') == selected_active_patient]
         
