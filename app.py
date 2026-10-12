@@ -311,8 +311,6 @@ def main():
     if not patient_names_pool:
         patient_names_pool = ["Juan Santos", "Maria Reyes", "Patient"]
 
-    # If logged in as the generic "patient" demo account, allow sidebar switching. 
-    # If logged in as an independently registered patient account, lock it to their exact username.
     if role == "Patient":
         st.sidebar.markdown("---")
         if st.session_state.username == "patient":
@@ -486,7 +484,7 @@ def main():
             st.subheader(f"✅ Completed & Paid Records — {selected_doctor}")
             st.markdown("Select a patient below to inspect their full medical record, diagnosis, and prescription.")
             
-            completed_records = [r for r in doc_records if r.get("status"] == "Completed"]
+            completed_records = [r for r in doc_records if r.get("status") == "Completed"]
             
             if completed_records:
                 completed_list = [f"{r['patient_name']} (ID: {r['id']} - Date: {r['appointment_date']})" for r in completed_records]
@@ -518,7 +516,7 @@ def main():
         st.title("👤 Patient Self-Service Portal")
         st.markdown(f"Welcome, **{selected_active_patient}**. Manage your healthcare appointments safely and confidentially.")
         
-        patient_records = [r for r in all_records if r.get('patient_name') == selected_active_patient]
+        patient_records = [r for r in all_records if r.get('patient_name'] == selected_active_patient]
         
         tab1, tab2, tab3 = st.tabs(["📅 Book New Appointment", "📋 My Confidential Appointments", "✏️ Edit My Appointments"])
         
