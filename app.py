@@ -91,7 +91,7 @@ class DatabaseManager:
             conflict_check = self.supabase.table("appointments").select("*").eq("doctor_id", doctor_id).eq("appointment_date", str(appointment_date)).eq("appointment_time", appointment_time).execute()
             
             if conflict_check.data:
-                active_conflicts = [r for r in conflict_check.data if r.get("status") != "Cancelled"]
+                active_conflicts = [r for r in conflict_check.data if r.get("status"] != "Cancelled"]
                 if active_conflicts:
                     return False, f"⚠️ Time Conflict: {doctor_id} already has an appointment at {appointment_time} on {appointment_date}. Please choose another slot."
 
@@ -444,25 +444,26 @@ def main():
 
         with admin_tab3:
             st.subheader("👥 Manage Registered User Accounts")
-            st.markdown("Filter, search, and manage registered patient, doctor, and admin accounts in Supabase.")
+            st.markdown("Filter, search, and manage registered patient and doctor accounts in Supabase.")
             
             search_query = st.text_input("🔍 Search Accounts by Username or User ID", placeholder="Type username or user ID to filter...").strip().lower()
             
-            # Filter users based on search bar query
+            # Exclude admin accounts from management view to keep single admin secure
+            non_admin_users = [u for u in users_list if str(u.get("role")).lower() != "admin"]
+            
             if search_query:
                 filtered_users = [
-                    u for u in users_list 
+                    u for u in non_admin_users 
                     if search_query in str(u.get("username", "")).lower() 
                     or search_query in str(u.get("id", "")).lower()
                 ]
             else:
-                filtered_users = users_list
+                filtered_users = non_admin_users
                 
-            acc_tab1, acc_tab2, acc_tab3 = st.tabs(["👤 Patient Accounts", "🩺 Doctor Accounts", "🛠️ Admin Accounts"])
+            acc_tab1, acc_tab2 = st.tabs(["👤 Patient Accounts", "🩺 Doctor Accounts"])
             
             patients = [u for u in filtered_users if str(u.get("role")).lower() == "patient"]
             doctors = [u for u in filtered_users if str(u.get("role")).lower() == "doctor"]
-            admins = [u for u in filtered_users if str(u.get("role")).lower() == "admin"]
             
             with acc_tab1:
                 st.markdown(f"### 👤 Registered Patients ({len(patients)})")
@@ -471,10 +472,6 @@ def main():
             with acc_tab2:
                 st.markdown(f"### 🩺 Registered Doctors ({len(doctors)})")
                 render_users_table(doctors)
-
-            with acc_tab3:
-                st.markdown(f"### 🛠️ Administrative Accounts ({len(admins)})")
-                render_users_table(admins)
             
             st.markdown("---")
             st.subheader("🗑️ Delete User Account")
@@ -526,7 +523,7 @@ def main():
         st.title("🩺 Medical Professional / Doctor Portal")
         st.markdown(f"Welcome, **{st.session_state.username}**. Managing clinical treatments and patient queue.")
         
-        doc_records = [r for r in all_records if selected_doctor == "All Doctors" or r.get("doctor_id") == selected_doctor]
+        doc_records = [r for r in all_records if selected_doctor == "All Doctors" or r.get("doctor_id"] == selected_doctor]
         
         doc_tab1, doc_tab2, doc_tab3 = st.tabs([
             "🩺 Consultation & Treatment Room", 
@@ -556,7 +553,7 @@ def main():
                         diagnosis = st.text_area("Medical Diagnosis", value=existing_diag, placeholder="Enter official diagnosis...")
                         prescription = st.text_area("Prescription & Treatment Plan", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
                         
-                        update_status = st.selectbox("Update Appointment Status", ["Completed", "Waiting", "Cancelled"], index=0 if chosen_record.get("status") == "Completed" else 0)
+                        update_status = st.selectbox("Update Appointment Status", ["Completed", "Waiting", "Cancelled"], index=0 if chosen_record.get("status"] == "Completed" else 0)
                         
                         save_consultation = st.form_submit_button("💾 Save Consultation & Issue Prescription", use_container_width=True)
                         
