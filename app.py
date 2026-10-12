@@ -42,6 +42,17 @@ class DatabaseManager:
         except Exception as e:
             return False, str(e)
 
+    def delete_user_completely(self, user_id, username):
+        """Permanently deletes a user account from Supabase and clears their appointment records"""
+        try:
+            # Delete user from the users table
+            self.supabase.table("users").delete().eq("id", user_id).execute()
+            # Delete any appointments associated with this username so a fresh account starts empty
+            self.supabase.table("appointments").delete().eq("patient_name", username).execute()
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
     def get_all_users(self):
         """Fetches all registered users from Supabase"""
         try:
@@ -473,12 +484,12 @@ def main():
                 sel_username = selected_user_str.split("|")[1].replace("Username:", "").strip()
                 
                 if st.button("🗑️ Permanently Delete User Account", use_container_width=True):
-                    try:
-                        db.supabase.table("users").delete().eq("id", sel_user_id).execute()
-                        st.success(f"User account '{sel_username}' (ID: #{sel_user_id}) permanently deleted from Supabase!")
+                    success, err = db.delete_user_completely(sel_user_id, sel_username)
+                    if success:
+                        st.success(f"User account '{sel_username}' (ID: #{sel_user_id}) and their associated appointments permanently deleted from Supabase!")
                         st.rerun()
-                    except Exception as e:
-                        st.error(f"Error deleting user account: {e}")
+                    else:
+                        st.error(f"Error deleting user account: {err}")
             else:
                 st.info("No matching user accounts found.")
 
@@ -537,7 +548,7 @@ def main():
                     with st.form("consultation_form"):
                         st.markdown("### Clinical Examination Notes")
                         existing_diag = chosen_record.get("diagnosis") or ""
-                        existing_presc = chosen_record.get("prescription") or ""
+                        existing_presc = chosen_record.get("prescription"] or ""
                         
                         chief_complaint = st.text_area("Chief Complaint / Symptoms", placeholder="Enter patient's symptoms...")
                         diagnosis = st.text_area("Medical Diagnosis", value=existing_diag, placeholder="Enter official diagnosis...")
