@@ -36,10 +36,11 @@ class DatabaseManager:
         except Exception as e:
             return []
 
-    def get_patient_appointments(self, patient_name):
-        """Security isolation: Fetches only appointments belonging to the logged-in patient"""
+    def get_patient_appointments(self, patient_identifier):
+        """Security isolation: Fetches appointments belonging to the logged-in user or matching patient name"""
         try:
-            response = self.supabase.table("appointments").select("*").eq("patient_name", patient_name).order("appointment_date", desc=False).execute()
+            # Queries records where either the patient name matches the username or contains it
+            response = self.supabase.table("appointments").select("*").or_(f"patient_name.ilike.%{patient_identifier}%,patient_name.eq.{patient_identifier}").order("appointment_date", desc=False).execute()
             return response.data
         except Exception as e:
             return []
