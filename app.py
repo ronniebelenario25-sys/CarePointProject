@@ -45,9 +45,7 @@ class DatabaseManager:
     def delete_user_completely(self, user_id, username):
         """Permanently deletes a user account from Supabase and clears their appointment records"""
         try:
-            # Delete user from the users table
             self.supabase.table("users").delete().eq("id", user_id).execute()
-            # Delete any appointments associated with this username so a fresh account starts empty
             self.supabase.table("appointments").delete().eq("patient_name", username).execute()
             return True, None
         except Exception as e:
@@ -548,7 +546,7 @@ def main():
                     with st.form("consultation_form"):
                         st.markdown("### Clinical Examination Notes")
                         existing_diag = chosen_record.get("diagnosis") or ""
-                        existing_presc = chosen_record.get("prescription"] or ""
+                        existing_presc = chosen_record.get("prescription") or ""
                         
                         chief_complaint = st.text_area("Chief Complaint / Symptoms", placeholder="Enter patient's symptoms...")
                         diagnosis = st.text_area("Medical Diagnosis", value=existing_diag, placeholder="Enter official diagnosis...")
