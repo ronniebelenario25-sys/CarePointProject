@@ -516,7 +516,7 @@ def main():
         st.title("👤 Patient Self-Service Portal")
         st.markdown(f"Welcome, **{selected_active_patient}**. Manage your healthcare appointments safely and confidentially.")
         
-        patient_records = [r for r in all_records if r.get('patient_name'] == selected_active_patient]
+        patient_records = [r for r in all_records if r.get('patient_name') == selected_active_patient]
         
         tab1, tab2, tab3 = st.tabs(["📅 Book New Appointment", "📋 My Confidential Appointments", "✏️ Edit My Appointments"])
         
