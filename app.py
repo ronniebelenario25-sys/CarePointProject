@@ -39,11 +39,9 @@ class DatabaseManager:
                 "role": "Patient",
                 "full_name": full_name
             }
-            # Insert including full_name directly
             self.supabase.table("users").insert(user_data).execute()
             return True, None
         except Exception as e:
-            # If the full_name column doesn't exist in Supabase yet, give a helpful tip
             if "full_name" in str(e):
                 return False, "Database error: Please add a 'full_name' text column to your Supabase 'users' table."
             return False, str(e)
@@ -608,7 +606,7 @@ def main():
             st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
             st.markdown("Patients who have completed their consultation and are waiting to pay at the admin desk.")
             
-            pending_records = [r for r in doc_records if r.get("status"] == "Pending Payment"]
+            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
             
             if pending_records:
                 render_modern_table(pending_records)
@@ -619,7 +617,6 @@ def main():
     elif role == "Patient":
         st.title("👤 Patient Self-Service Portal")
         
-        # Get the real full name for the logged in user
         logged_in_user_obj = next((u for u in users_list if str(u.get('username')) == str(st.session_state.username)), {})
         my_real_full_name = logged_in_user_obj.get('full_name') or st.session_state.get('full_name') or st.session_state.username
         
