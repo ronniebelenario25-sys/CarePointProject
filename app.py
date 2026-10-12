@@ -25,7 +25,7 @@ class DatabaseManager:
             return None, None
 
     def register_patient(self, username, password):
-        """Registers a new patient account and creates an initial profile entry in appointments"""
+        """Registers a new patient account in the users table without creating automatic dummy appointments"""
         try:
             existing = self.supabase.table("users").select("username").eq("username", username).execute()
             if existing.data:
@@ -37,17 +37,6 @@ class DatabaseManager:
                 "role": "Patient"
             }
             self.supabase.table("users").insert(user_data).execute()
-            
-            profile_data = {
-                "patient_name": username,
-                "doctor_id": "Dr. Smith",
-                "appointment_date": datetime.now().strftime("%Y-%m-%d"),
-                "appointment_time": "08:00 AM",
-                "status": "Waiting",
-                "diagnosis": "Account successfully registered.",
-                "prescription": "None"
-            }
-            self.supabase.table("appointments").insert(profile_data).execute()
             
             return True, None
         except Exception as e:
@@ -579,7 +568,7 @@ def main():
             st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
             st.markdown("Patients who have completed their consultation and are waiting to pay at the admin desk.")
             
-            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
+            pending_records = [r for r in doc_records if r.get("status"] == "Pending Payment"]
             
             if pending_records:
                 render_modern_table(pending_records)
