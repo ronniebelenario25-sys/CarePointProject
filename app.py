@@ -318,9 +318,9 @@ def main():
                 st.markdown("Create an account with a unique username and separate patient full name.")
                 
                 with st.form("register_form"):
-                    new_user = st.text_input("Choose Unique Login Username (e.g., ronnie_b)")
+                    new_user = st.text_input("Choose Unique Login Username (e.g., patient_user)")
                     new_pass = st.text_input("Choose Password", type="password")
-                    new_fullname = st.text_input("Patient Full Name (e.g., Ronnie L. Belenario)")
+                    new_fullname = st.text_input("Patient Full Name (e.g., John Doe)")
                     reg_submit = st.form_submit_button("Register Account", use_container_width=True)
                     
                     if reg_submit:
