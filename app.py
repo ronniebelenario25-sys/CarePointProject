@@ -37,7 +37,7 @@ class DatabaseManager:
             return []
 
     def get_patient_appointments(self, username):
-        """Fetches appointments belonging to the logged-in patient flexibly"""
+        """Fetches appointments flexibly"""
         try:
             response = self.supabase.table("appointments").select("*").execute()
             all_records = response.data
@@ -411,7 +411,7 @@ def main():
             st.subheader(f"✅ Completed & Paid Records — {selected_doctor}")
             st.markdown("Select a patient below to inspect their full medical record, diagnosis, and prescription.")
             
-            completed_records = [r for r in doc_records if r.get("status") == "Completed"]
+            completed_records = [r for r in doc_records if r.get("status"] == "Completed"]
             
             if completed_records:
                 completed_list = [f"{r['patient_name']} (ID: {r['id']} - Date: {r['appointment_date']})" for r in completed_records]
@@ -450,7 +450,8 @@ def main():
             with st.form("booking_form"):
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    p_name = st.text_input("Patient Name", value=st.session_state.username)
+                    # Fully flexible input so you can type any patient name you want for your booking
+                    p_name = st.text_input("Patient Full Name", value="Juan Dela Cruz")
                     doc_choice = st.selectbox("Select Attending Physician", doctors_list[1:])
                 with col_b:
                     app_date = st.date_input("Preferred Date")
@@ -461,15 +462,24 @@ def main():
                 if book_submit:
                     success, err_msg = db.add_appointment(p_name, doc_choice, app_date, app_time, "Waiting")
                     if success:
-                        st.success("🎉 Appointment successfully booked and synchronized with the cloud database!")
+                        st.success(f"🎉 Appointment successfully booked for {p_name} and synchronized with the cloud database!")
                         st.rerun()
                     else:
                         st.error(f"Failed to submit booking. Supabase Error: {err_msg}")
                         
         with tab2:
             st.subheader("Your Personal Medical Appointments")
-            my_records = db.get_patient_appointments(st.session_state.username)
-            render_modern_table(my_records)
+            
+            # Fetch all appointments from the database so you can filter/search them just like the doctor portal view
+            all_db_records = db.get_all_appointments()
+            unique_patients = sorted(list(set(r.get('patient_name') for r in all_db_records if r.get('patient_name'))))
+            
+            if unique_patients:
+                selected_patient_filter = st.selectbox("🔍 Select Patient Name to View Records", unique_patients)
+                my_records = [r for r in all_db_records if r.get('patient_name') == selected_patient_filter]
+                render_modern_table(my_records)
+            else:
+                st.info("No appointment records found in the database.")
 
 if __name__ == "__main__":
     main()
