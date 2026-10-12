@@ -323,7 +323,8 @@ def main():
                 with st.form("register_form"):
                     new_user = st.text_input("Choose Unique Login Username (e.g., patient_user)")
                     new_pass = st.text_input("Choose Password", type="password")
-                    new_fullname = st.text_input("Patient Full Name (e.g., Ronnie B.)")
+                    # Generic placeholder restored to John Doe as requested!
+                    new_fullname = st.text_input("Patient Full Name (e.g., John Doe)")
                     reg_submit = st.form_submit_button("Register Account", use_container_width=True)
                     
                     if reg_submit:
