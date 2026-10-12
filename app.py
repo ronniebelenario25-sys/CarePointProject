@@ -37,11 +37,9 @@ class DatabaseManager:
                 "role": "Patient",
                 "full_name": full_name
             }
-            # If your users table doesn't have a 'full_name' column yet, it will fall back gracefully or you can add it to Supabase
             try:
                 self.supabase.table("users").insert(user_data).execute()
             except Exception:
-                # Fallback if full_name column isn't created in Supabase table yet
                 user_data_basic = {"username": username, "password": password, "role": "Patient"}
                 self.supabase.table("users").insert(user_data_basic).execute()
                 
@@ -614,7 +612,7 @@ def main():
         st.title("👤 Patient Self-Service Portal")
         st.markdown(f"Welcome, **{selected_active_patient}**.")
         
-        patient_records = [r for r in all_records if r.get('patient_name'] == selected_active_patient]
+        patient_records = [r for r in all_records if r.get('patient_name') == selected_active_patient]
         
         tab1, tab2, tab3 = st.tabs(["📅 Book New Appointment", "📋 My Confidential Appointments", "✏️ Edit My Appointments"])
         
