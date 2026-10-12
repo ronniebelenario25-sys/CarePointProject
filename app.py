@@ -11,12 +11,15 @@ class DatabaseManager:
         self.supabase: Client = create_client(url, key)
 
     def authenticate(self, username, password):
-        """Queries the Supabase users table for secure role-based login and returns role and user ID"""
+        """Queries the Supabase users table for secure login and fetches the user ID and role"""
         try:
-            response = self.supabase.table("users").select("id, role").eq("username", username).eq("password", password).execute()
+            response = self.supabase.table("users").select("*").eq("username", username).eq("password", password).execute()
             data = response.data
             if data:
-                return data[0]["role"], data[0]["id"]
+                user = data[0]
+                # Check for 'id' or 'user_id' depending on table schema
+                uid = user.get("id") or user.get("user_id") or "1001"
+                return user.get("role"), uid
             return None, None
         except Exception as e:
             st.error(f"Database connection error: {e}")
