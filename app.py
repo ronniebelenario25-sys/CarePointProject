@@ -17,7 +17,6 @@ class DatabaseManager:
             data = response.data
             if data:
                 user = data[0]
-                # Check for 'id' or 'user_id' depending on table schema
                 uid = user.get("id") or user.get("user_id") or "1001"
                 return user.get("role"), uid
             return None, None
@@ -53,6 +52,14 @@ class DatabaseManager:
             return True, None
         except Exception as e:
             return False, str(e)
+
+    def get_all_users(self):
+        """Fetches all registered users from Supabase"""
+        try:
+            response = self.supabase.table("users").select("*").execute()
+            return response.data
+        except Exception as e:
+            return []
 
     def get_all_appointments(self):
         """Fetches all master records (Restricted to Admin only)"""
@@ -231,6 +238,26 @@ def render_modern_table(records):
         }
     )
 
+def render_users_table(users):
+    """Renders user accounts table"""
+    if not users:
+        st.warning("No users found.")
+        return
+
+    import pandas as pd
+    df = pd.DataFrame(users)
+    
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "id": st.column_config.NumberColumn("User ID", format="%d"),
+            "username": st.column_config.TextColumn("Username"),
+            "role": st.column_config.TextColumn("Role")
+        }
+    )
+
 # --- MAIN APPLICATION UI ---
 def main():
     st.set_page_config(page_title="CarePoint Clinic System", page_icon="💊", layout="wide")
@@ -301,7 +328,7 @@ def main():
 
     # --- 2. SIDEBAR NAVIGATION ---
     role = st.session_state.role
-    st.sidebar.markdown(f"### 👤 Patient Name: **{st.session_state.username}**")
+    st.sidebar.markdown(f"### 👤 User: **{st.session_state.username}**")
     st.sidebar.markdown(f"**Account ID:** `#{st.session_state.get('user_id', 'N/A')}`")
     st.sidebar.markdown(f"**Access Role:** `{role}`")
     
@@ -344,15 +371,21 @@ def main():
         st.markdown("System-wide master monitoring dashboard and record management connected directly to Supabase.")
         
         records = db.get_all_appointments()
+        users_list = db.get_all_users()
         
         m1, m2, m3 = st.columns(3)
         m1.metric(label="Total Database Records", value=len(records))
-        m2.metric(label="Active Queue Status", value="Online 🟢")
+        m2.metric(label="Registered Accounts", value=len(users_list))
         m3.metric(label="System Security", value="Role-Based Protected")
         
         st.markdown("---")
         
-        admin_tab1, admin_tab2, admin_tab3 = st.tabs(["📋 Master Appointment Table", "✏️ Edit / Delete Records", "➕ Add New Record"])
+        admin_tab1, admin_tab2, admin_tab3, admin_tab4 = st.tabs([
+            "📋 Master Appointment Table", 
+            "✏️ Edit / Delete Records", 
+            "👥 Manage User Accounts",
+            "➕ Add New Record"
+        ])
         
         with admin_tab1:
             st.subheader("📋 Master Appointment Database")
@@ -406,6 +439,31 @@ def main():
                 st.warning("No records available to edit or delete.")
 
         with admin_tab3:
+            st.subheader("👥 Manage Registered User Accounts")
+            st.markdown("View all user accounts in Supabase and permanently delete accounts if needed.")
+            
+            render_users_table(users_list)
+            
+            st.markdown("---")
+            st.subheader("🗑️ Delete User Account")
+            if users_list:
+                user_options = [f"ID: {u['id']} | Username: {u['username']} | Role: {u['role']}" for u in users_list]
+                selected_user_str = st.selectbox("Select User Account to Delete", user_options)
+                
+                sel_user_id = int(selected_user_str.split("|")[0].replace("ID:", "").strip())
+                sel_username = selected_user_str.split("|")[1].replace("Username:", "").strip()
+                
+                if st.button("🗑️ Permanently Delete User Account", use_container_width=True):
+                    try:
+                        db.supabase.table("users").delete().eq("id", sel_user_id).execute()
+                        st.success(f"User account '{sel_username}' (ID: #{sel_user_id}) permanently deleted from Supabase!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error deleting user account: {e}")
+            else:
+                st.info("No user accounts found.")
+
+        with admin_tab4:
             st.subheader("➕ Add a New Master Appointment Record")
             with st.form("admin_add_form"):
                 col_a1, col_a2 = st.columns(2)
