@@ -89,7 +89,7 @@ class DatabaseManager:
             conflict_check = self.supabase.table("appointments").select("*").eq("doctor_id", doctor_id).eq("appointment_date", str(appointment_date)).eq("appointment_time", appointment_time).execute()
             
             if conflict_check.data:
-                active_conflicts = [r for r in conflict_check.data if r.get("status") != "Cancelled"]
+                active_conflicts = [r for r in conflict_check.data if r.get("status"] != "Cancelled"]
                 if active_conflicts:
                     return False, f"⚠️ Time Conflict: {doctor_id} already has an appointment at {appointment_time} on {appointment_date}. Please choose another slot."
 
@@ -332,7 +332,10 @@ def main():
     role = st.session_state.role
     st.sidebar.markdown(f"### 👤 User: **{st.session_state.username}**")
     st.sidebar.markdown(f"**Account ID:** `#{st.session_state.get('user_id', 'N/A')}`")
-    st.sidebar.markdown(f"**Access Role:** `{role}`")
+    
+    # Display "Master Patient" for the demo patient account, and normal role for others
+    display_role_label = "Master Patient" if st.session_state.username == "patient" else role
+    st.sidebar.markdown(f"**Access Role:** `{display_role_label}`")
     
     selected_doctor = "All Doctors"
     doctors_list = [
