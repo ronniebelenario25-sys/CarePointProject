@@ -48,9 +48,13 @@ class DatabaseManager:
             return False, str(e)
 
     def delete_user_completely(self, user_id, username):
-        """Permanently deletes a user account from Supabase and clears their appointment records"""
+        """Permanently deletes a user account (username & password) and all their associated appointments"""
         try:
+            # 1. Delete user account from the users table by ID and username
             self.supabase.table("users").delete().eq("id", user_id).execute()
+            self.supabase.table("users").delete().eq("username", username).execute()
+            
+            # 2. Delete all appointments tied to this username or patient name
             self.supabase.table("appointments").delete().eq("patient_name", username).execute()
             return True, None
         except Exception as e:
