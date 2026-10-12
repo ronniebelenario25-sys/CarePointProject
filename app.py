@@ -11,18 +11,20 @@ class DatabaseManager:
         self.supabase: Client = create_client(url, key)
 
     def authenticate(self, username, password):
-        """Queries the Supabase users table for secure login and fetches the user ID and role"""
+        """Queries the Supabase users table for secure login and fetches the user ID, role, and full name"""
         try:
             response = self.supabase.table("users").select("*").eq("username", username).eq("password", password).execute()
             data = response.data
             if data:
                 user = data[0]
                 uid = user.get("id") or user.get("user_id") or "1001"
-                return user.get("role"), uid
-            return None, None
+                role = user.get("role")
+                full_name = user.get("full_name") or username
+                return role, uid, full_name
+            return None, None, None
         except Exception as e:
             st.error(f"Database connection error: {e}")
-            return None, None
+            return None, None, None
 
     def register_patient(self, username, password, full_name):
         """Registers a new patient account with a unique username and a separate patient full name"""
@@ -50,11 +52,8 @@ class DatabaseManager:
     def delete_user_completely(self, user_id, username):
         """Permanently deletes a user account (username & password) and all their associated appointments"""
         try:
-            # 1. Delete user account from the users table by ID and username
             self.supabase.table("users").delete().eq("id", user_id).execute()
             self.supabase.table("users").delete().eq("username", username).execute()
-            
-            # 2. Delete all appointments tied to this username or patient name
             self.supabase.table("appointments").delete().eq("patient_name", username).execute()
             return True, None
         except Exception as e:
@@ -286,6 +285,7 @@ def main():
         st.session_state.role = None
         st.session_state.username = None
         st.session_state.user_id = None
+        st.session_state.full_name = None
 
     # --- 1. LOGIN GATEWAY & REGISTRATION ---
     if not st.session_state.authenticated:
@@ -306,12 +306,13 @@ def main():
                     submit = st.form_submit_button("Access Portal", use_container_width=True)
                     
                     if submit:
-                        role, user_id = db.authenticate(username, password)
+                        role, user_id, full_name = db.authenticate(username, password)
                         if role:
                             st.session_state.authenticated = True
                             st.session_state.role = role
                             st.session_state.username = username
                             st.session_state.user_id = user_id
+                            st.session_state.full_name = full_name
                             st.success(f"Authenticated successfully as {role}!")
                             st.rerun()
                         else:
@@ -361,8 +362,9 @@ def main():
     patient_options_map = {}
     for u in users_list:
         if str(u.get('role')).lower() == 'patient':
-            display_label = f"ID #{u.get('id')} - Username: {u.get('username')}"
-            patient_options_map[display_label] = u.get('username')
+            disp_name = u.get('full_name') or u.get('username')
+            display_label = f"ID #{u.get('id')} - {disp_name} ({u.get('username')})"
+            patient_options_map[display_label] = disp_name
             
     for r in all_records:
         p_name = r.get('patient_name')
@@ -381,7 +383,9 @@ def main():
             selected_label = st.sidebar.selectbox("Demo Patient Switcher (ID Filtered)", patient_labels_list)
             selected_active_patient = patient_options_map[selected_label]
         else:
-            selected_active_patient = st.session_state.username
+            # Look up this user's full name from users_list, fallback to session full_name or username
+            current_user_obj = next((u for u in users_list if str(u.get('username')) == str(st.session_state.username)), {})
+            selected_active_patient = current_user_obj.get('full_name') or st.session_state.get('full_name') or st.session_state.username
             st.sidebar.info(f"**Viewing Dashboard for:**\n`{selected_active_patient}` (ID #{st.session_state.get('user_id')})")
 
     st.sidebar.markdown("---")
@@ -391,6 +395,7 @@ def main():
         st.session_state.role = None
         st.session_state.username = None
         st.session_state.user_id = None
+        st.session_state.full_name = None
         st.rerun()
 
     # --- 3. ROLE-BASED DASHBOARDS ---
