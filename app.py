@@ -36,19 +36,26 @@ class DatabaseManager:
         except Exception as e:
             return []
 
-    def get_patient_appointments(self, username):
-        """Fetches appointments flexibly"""
+    def get_patient_appointments(self, patient_name):
+        """Fetches appointments for a specific patient"""
         try:
-            response = self.supabase.table("appointments").select("*").execute()
-            all_records = response.data
-            matched = [r for r in all_records if str(username).lower() in str(r.get('patient_name', '')).lower()]
-            return matched
+            response = self.supabase.table("appointments").select("*").eq("patient_name", patient_name).order("appointment_date", desc=False).execute()
+            return response.data
         except Exception as e:
             return []
 
     def add_appointment(self, patient_name, doctor_id, appointment_date, appointment_time, status):
-        """Adds a new appointment with exact time tracking and error handling"""
+        """Adds a new appointment with double-booking prevention checks"""
         try:
+            # Check if this doctor already has an active booking at the same date and time
+            conflict_check = self.supabase.table("appointments").select("*").eq("doctor_id", doctor_id).eq("appointment_date", str(appointment_date)).eq("appointment_time", appointment_time).execute()
+            
+            if conflict_check.data:
+                # Filter out cancelled appointments from blocking time slots
+                active_conflicts = [r for r in conflict_check.data if r.get("status") != "Cancelled"]
+                if active_conflicts:
+                    return False, f"⚠️ Time Conflict: {doctor_id} already has an appointment at {appointment_time} on {appointment_date}. Please choose another slot."
+
             data = {
                 "patient_name": patient_name,
                 "doctor_id": doctor_id,
@@ -57,6 +64,22 @@ class DatabaseManager:
                 "status": status
             }
             self.supabase.table("appointments").insert(data).execute()
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
+    def update_appointment(self, record_id, patient_name, doctor_id, appointment_date, appointment_time, status, diagnosis, prescription):
+        """Allows updating/editing patient appointments based on preferences"""
+        try:
+            self.supabase.table("appointments").update({
+                "patient_name": patient_name,
+                "doctor_id": doctor_id,
+                "appointment_date": str(appointment_date),
+                "appointment_time": appointment_time,
+                "status": status,
+                "diagnosis": diagnosis,
+                "prescription": prescription
+            }).eq("id", record_id).execute()
             return True, None
         except Exception as e:
             return False, str(e)
@@ -234,6 +257,17 @@ def main():
         st.sidebar.markdown("---")
         selected_doctor = st.sidebar.selectbox("🩺 Filter by Doctor Name", doctors_list)
 
+    # Fetch all records for sidebar dropdown filtering
+    all_records = db.get_all_appointments()
+    patient_names_pool = sorted(list(set(r.get('patient_name') for r in all_records if r.get('patient_name'))))
+    if not patient_names_pool:
+        patient_names_pool = ["Juan Santos", "Maria Reyes", "Patient"]
+
+    selected_active_patient = "Patient"
+    if role == "Patient":
+        st.sidebar.markdown("---")
+        selected_active_patient = st.sidebar.selectbox("👤 Act as Patient Name", patient_names_pool)
+
     st.sidebar.markdown("---")
     
     if st.sidebar.button("🚪 Logout", use_container_width=True):
@@ -294,20 +328,12 @@ def main():
                         delete_btn = col_btn2.form_submit_button("🗑️ Delete Record", use_container_width=True)
                         
                         if update_btn:
-                            try:
-                                db.supabase.table("appointments").update({
-                                    "patient_name": edit_patient,
-                                    "doctor_id": edit_doctor,
-                                    "appointment_date": edit_date,
-                                    "appointment_time": edit_time,
-                                    "status": edit_status,
-                                    "diagnosis": edit_diag,
-                                    "prescription": edit_presc
-                                }).eq("id", selected_id).execute()
+                            success, err = db.update_appointment(selected_id, edit_patient, edit_doctor, edit_date, edit_time, edit_status, edit_diag, edit_presc)
+                            if success:
                                 st.success(f"Record #{selected_id} updated successfully!")
                                 st.rerun()
-                            except Exception as e:
-                                st.error(f"Error updating record: {e}")
+                            else:
+                                st.error(f"Error updating record: {err}")
                                 
                         if delete_btn:
                             try:
@@ -350,11 +376,7 @@ def main():
         st.title("🩺 Medical Professional / Doctor Portal")
         st.markdown(f"Welcome, **{st.session_state.username}**. Managing clinical treatments and patient queue.")
         
-        all_records = db.get_doctor_appointments(st.session_state.username)
-        if selected_doctor == "All Doctors":
-            doc_records = all_records
-        else:
-            doc_records = [r for r in all_records if r.get("doctor_id") == selected_doctor]
+        doc_records = [r for r in all_records if selected_doctor == "All Doctors" or r.get("doctor_id") == selected_doctor]
         
         doc_tab1, doc_tab2, doc_tab3 = st.tabs([
             "🩺 Consultation & Treatment Room", 
@@ -441,16 +463,18 @@ def main():
     # --- PATIENT PORTAL ---
     elif role == "Patient":
         st.title("👤 Patient Self-Service Portal")
-        st.markdown(f"Welcome back, **{st.session_state.username}**. Manage your healthcare appointments safely and confidentially.")
+        st.markdown(f"Welcome, acting as **{selected_active_patient}**. Manage your healthcare appointments safely and confidentially.")
         
-        tab1, tab2 = st.tabs(["📅 Book New Appointment", "📋 My Confidential Appointments"])
+        patient_records = [r for r in all_records if r.get('patient_name') == selected_active_patient]
+        
+        tab1, tab2, tab3 = st.tabs(["📅 Book New Appointment", "📋 My Confidential Appointments", "✏️ Edit My Appointments"])
         
         with tab1:
-            st.subheader("Schedule a New Clinic Visit")
+            st.subheader(f"Schedule a New Visit for {selected_active_patient}")
             with st.form("booking_form"):
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    p_name = st.text_input("Patient Full Name", value="Juan Dela Cruz")
+                    p_name = st.text_input("Patient Full Name", value=selected_active_patient)
                     doc_choice = st.selectbox("Select Attending Physician", doctors_list[1:])
                 with col_b:
                     app_date = st.date_input("Preferred Date")
@@ -461,23 +485,56 @@ def main():
                 if book_submit:
                     success, err_msg = db.add_appointment(p_name, doc_choice, app_date, app_time, "Waiting")
                     if success:
-                        st.success(f"🎉 Appointment successfully booked for {p_name} and synchronized with the cloud database!")
+                        st.success(f"🎉 Appointment successfully booked for {p_name} with {doc_choice}!")
                         st.rerun()
                     else:
-                        st.error(f"Failed to submit booking. Supabase Error: {err_msg}")
+                        st.error(err_msg)
                         
         with tab2:
-            st.subheader("Your Personal Medical Appointments")
-            
-            all_db_records = db.get_all_appointments()
-            unique_patients = sorted(list(set(r.get('patient_name') for r in all_db_records if r.get('patient_name'))))
-            
-            if unique_patients:
-                selected_patient_filter = st.selectbox("🔍 Select Patient Name to View Records", unique_patients)
-                my_records = [r for r in all_db_records if r.get('patient_name') == selected_patient_filter]
-                render_modern_table(my_records)
+            st.subheader(f"📋 Appointments for {selected_active_patient}")
+            render_modern_table(patient_records)
+
+        with tab3:
+            st.subheader(f"✏️ Edit or Cancel Appointments for {selected_active_patient}")
+            if patient_records:
+                pat_options = [f"ID: {r['id']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']} {r['appointment_time']} | Status: {r['status']}" for r in patient_records]
+                selected_pat_rec_str = st.selectbox("Select Appointment to Modify", pat_options, key="pat_edit_select")
+                
+                sel_pat_id = int(selected_pat_rec_str.split("|")[0].replace("ID:", "").strip())
+                curr_pat_rec = next((r for r in patient_records if r['id'] == sel_pat_id), None)
+                
+                if curr_pat_rec:
+                    with st.form("patient_self_edit_form"):
+                        col_p1, col_p2 = st.columns(2)
+                        with col_p1:
+                            edit_p_name = st.text_input("Patient Full Name", value=curr_pat_rec['patient_name'])
+                            edit_p_doc = st.selectbox("Attending Physician", doctors_list[1:], index=doctors_list[1:].index(curr_pat_rec['doctor_id']) if curr_pat_rec['doctor_id'] in doctors_list[1:] else 0)
+                            edit_p_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=curr_pat_rec['appointment_date'])
+                        with col_p2:
+                            edit_p_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(curr_pat_rec['appointment_time']) if curr_pat_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
+                            edit_p_status = st.selectbox("Status", ["Waiting", "Cancelled"], index=["Waiting", "Cancelled"].index(curr_pat_rec['status']) if curr_pat_rec['status'] in ["Waiting", "Cancelled"] else 0)
+                        
+                        col_pb1, col_pb2 = st.columns(2)
+                        save_p_edit = col_pb1.form_submit_button("💾 Save Preferences", use_container_width=True)
+                        cancel_p_booking = col_pb2.form_submit_button("❌ Cancel Booking", use_container_width=True)
+                        
+                        if save_p_edit:
+                            success, err = db.update_appointment(sel_pat_id, edit_p_name, edit_p_doc, edit_p_date, edit_p_time, edit_p_status, curr_pat_rec.get('diagnosis'), curr_pat_rec.get('prescription'))
+                            if success:
+                                st.success(f"Appointment #{sel_pat_id} updated successfully!")
+                                st.rerun()
+                            else:
+                                st.error(f"Error: {err}")
+                                
+                        if cancel_p_booking:
+                            success, err = db.update_appointment(sel_pat_id, curr_pat_rec['patient_name'], curr_pat_rec['doctor_id'], curr_pat_rec['appointment_date'], curr_pat_rec['appointment_time'], "Cancelled", curr_pat_rec.get('diagnosis'), curr_pat_rec.get('prescription'))
+                            if success:
+                                st.warning(f"Appointment #{sel_pat_id} has been cancelled.")
+                                st.rerun()
+                            else:
+                                st.error(f"Error: {err}")
             else:
-                st.info("No appointment records found in the database.")
+                st.info(f"No appointments found for {selected_active_patient}.")
 
 if __name__ == "__main__":
     main()
