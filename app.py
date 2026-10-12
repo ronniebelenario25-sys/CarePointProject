@@ -593,7 +593,7 @@ def main():
             st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
             st.markdown("Patients who have completed their consultation and are waiting to pay at the admin desk.")
             
-            pending_records = [r for r in doc_records if r.get("status"] == "Pending Payment"]
+            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
             
             if pending_records:
                 render_modern_table(pending_records)
