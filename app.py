@@ -511,6 +511,7 @@ def main():
                             edit_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(current_rec['appointment_time']) if current_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
                         
                         st.markdown("---")
+                        st.markdown("### Medical Records")
                         st.text_area("Diagnosis", value=current_rec.get('diagnosis') or "None recorded yet.", disabled=True)
                         st.text_area("Prescription", value=current_rec.get('prescription') or "None recorded yet.", disabled=True)
                         
