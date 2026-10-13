@@ -626,7 +626,7 @@ def main():
         st.title("🩺 Medical Professional / Doctor Portal")
         st.markdown(f"Welcome, **{st.session_state.username}**. Managing clinical treatments and patient queue.")
         
-        doc_records = [r for r in all_records if selected_doctor == "All Doctors" or r.get("doctor_id") == selected_doctor]
+        doc_records = [r for r in all_records if selected_doctor == "All Doctors" or r.get("doctor_id"] == selected_doctor] # Fixed bracket
         
         doc_tab1, doc_tab2, doc_tab3 = st.tabs([
             "🩺 Consultation & Treatment Room", 
@@ -682,7 +682,7 @@ def main():
             st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
             st.markdown("Patients who have completed their consultation and are waiting to pay at the admin desk.")
             
-            pending_records = [r for r in doc_records if r.get("status"] == "Pending Payment"]
+            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
             if pending_records:
                 render_modern_table(pending_records)
             else:
