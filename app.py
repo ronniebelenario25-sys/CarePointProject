@@ -207,7 +207,7 @@ def apply_custom_css():
     """, unsafe_allow_html=True)
 
 def render_modern_table(records):
-    """Renders records using Streamlit's native data grid without the account username column to maximize space"""
+    """Renders records using Streamlit's native data grid"""
     if not records:
         st.warning("No records found.")
         return
@@ -215,7 +215,6 @@ def render_modern_table(records):
     import pandas as pd
     df = pd.DataFrame(records)
     
-    # Exclude 'account_username' from display order to streamline the UI and save space
     cols_order = [c for c in ['id', 'patient_name', 'doctor_id', 'appointment_date', 'appointment_time', 'status', 'diagnosis', 'prescription'] if c in df.columns]
     df = df[cols_order]
 
@@ -276,6 +275,7 @@ def main():
         st.error("⚠️ Please configure your Supabase credentials in Streamlit Cloud Secrets.")
         return
 
+    # --- PERSISTENT SESSION STATE INITIALIZATION ---
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
         st.session_state.role = None
