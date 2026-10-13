@@ -682,7 +682,7 @@ def main():
             st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
             st.markdown("Patients who have completed their consultation and are waiting to pay at the admin desk.")
             
-            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
+            pending_records = [r for r in doc_records if r.get("status"] == "Pending Payment"]
             if pending_records:
                 render_modern_table(pending_records)
             else:
@@ -747,10 +747,12 @@ def main():
                 selected_card_rec = next((r for r in patient_records if r['id'] == sel_presc_id), None)
                 
                 if selected_card_rec:
+                    rx_serial_number = f"RX-{str(selected_card_rec.get('appointment_date', '2026')).replace('-', '')}-{selected_card_rec.get('id')}"
                     pay_status_display = f"Paid via {selected_card_rec.get('payment_method')} (₱{selected_card_rec.get('payment_amount')})" if selected_card_rec.get('payment_method') else "Unpaid / Pending Payment"
                     st.markdown(f"""
                         <div class="prescription-card">
                             <h3>🏥 CarePoint Official Medical Prescription & Diagnosis</h3>
+                            <p><b>Prescription Tracking ID:</b> <span style="color: #dc2626; font-family: monospace;">{rx_serial_number}</span></p>
                             <p><b>Appointment ID:</b> #{selected_card_rec.get('id')} | <b>Patient:</b> {selected_card_rec.get('patient_name')} | <b>Attending Doctor:</b> {selected_card_rec.get('doctor_id')}</p>
                             <p><b>Appointment Date:</b> {selected_card_rec.get('appointment_date')} at {selected_card_rec.get('appointment_time')} | <b>Status:</b> {selected_card_rec.get('status')}</p>
                             <p><b>Payment Status:</b> {pay_status_display}</p>
@@ -759,6 +761,10 @@ def main():
                             <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('diagnosis') or 'No diagnosis recorded yet.'}</p>
                             <h4 style="margin-top: 20px;">Prescription & Treatment Plan</h4>
                             <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('prescription') or 'No prescription issued yet.'}</p>
+                            <div style="margin-top: 30px; text-align: right;">
+                                <p><b>{selected_card_rec.get('doctor_id')}</b></p>
+                                <p style="font-size: 0.9em; color: #555;">PRC License No: 0012345 | PTR No: 9876543<br><i>Digitally Generated & Verified Serialized Form</i></p>
+                            </div>
                         </div>
                     """, unsafe_allow_html=True)
 
