@@ -456,10 +456,9 @@ def main():
                 
         with admin_tab2:
             st.subheader("💵 Cashier Payment Verification & Schedule Management")
-            st.markdown("Select a patient appointment to verify payment, mark as **Completed**, or update scheduling details. *(Note: Medical diagnoses and prescriptions are read-only to maintain accountability).*")
+            st.markdown("Select a patient appointment to verify payment, mark as **Completed**, or update scheduling details.")
             
             if records:
-                # Sorted numerically by Appointment ID
                 sorted_records = sorted(records, key=lambda x: int(x['id']))
                 record_options = [f"ID #{r['id']} | Patient: {r['patient_name']} | Status: {r['status']} | Dr: {r['doctor_id']}" for r in sorted_records]
                 selected_rec_str = st.selectbox("Select Record for Cashier / Modification", record_options)
@@ -480,9 +479,9 @@ def main():
                             edit_status = st.selectbox("Status", ["Waiting", "Pending Payment", "Completed", "Cancelled"], index=["Waiting", "Pending Payment", "Completed", "Cancelled"].index(current_rec['status']) if current_rec['status'] in ["Waiting", "Pending Payment", "Completed", "Cancelled"] else 0)
                         
                         st.markdown("---")
-                        st.markdown("### 🔒 Immutable Medical Records (Read-Only for Admin)")
-                        st.text_area("Diagnosis (Doctor Only)", value=current_rec.get('diagnosis') or "None recorded yet.", disabled=True)
-                        st.text_area("Prescription (Doctor Only)", value=current_rec.get('prescription') or "None recorded yet.", disabled=True)
+                        st.markdown("### 🔒 Immutable Medical Records")
+                        st.text_area("Diagnosis", value=current_rec.get('diagnosis') or "None recorded yet.", disabled=True)
+                        st.text_area("Prescription", value=current_rec.get('prescription') or "None recorded yet.", disabled=True)
                         
                         col_btn1, col_btn2 = st.columns(2)
                         update_btn = col_btn1.form_submit_button("💾 Save Schedule & Mark Paid", use_container_width=True)
@@ -597,7 +596,6 @@ def main():
             st.markdown("Select a patient from your queue to examine records, write diagnosis, and issue prescriptions. *Note: Saving moves the patient to the cashier payment queue.*")
             
             if doc_records:
-                # Sorted numerically by Appointment ID
                 sorted_doc_records = sorted(doc_records, key=lambda x: int(x['id']))
                 patient_names_list = [f"ID #{r['id']} | Patient: {r['patient_name']} ({r['appointment_date']} {r['appointment_time']})" for r in sorted_doc_records]
                 selected_patient_str = st.selectbox("Select Patient in Consultation", patient_names_list)
@@ -641,7 +639,7 @@ def main():
             st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
             st.markdown("Patients who have completed their consultation and are waiting to pay at the admin desk.")
             
-            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
+            pending_records = [r for r in doc_records if r.get("status"] == "Pending Payment"]
             if pending_records:
                 render_modern_table(pending_records)
             else:
@@ -698,7 +696,6 @@ def main():
             st.markdown("---")
             st.subheader("🩺 View Clinical Prescriptions & Diagnosis Cards")
             if patient_records:
-                # Sorted numerically by Appointment ID
                 sorted_presc_records = sorted(patient_records, key=lambda x: int(x['id']))
                 presc_options = [f"ID #{r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']}" for r in sorted_presc_records]
                 selected_presc_str = st.selectbox("Select Appointment to View Prescription", presc_options, key="patient_presc_view")
