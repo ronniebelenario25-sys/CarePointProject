@@ -178,7 +178,6 @@ class DatabaseManager:
             return True, None
         except Exception as e:
             try:
-                # Fallback if tracking_number column hasn't been added to table yet
                 self.supabase.table("appointments").update({
                     "diagnosis": diagnosis,
                     "prescription": prescription,
@@ -214,12 +213,15 @@ class DatabaseManager:
                 batch_data = []
                 for doc in doctors:
                     doc_patient_count = random.randint(15, 52)
-                    for _ in range(doc_patient_count):
+                    for i in range(doc_patient_count):
                         patient_name = f"{random.choice(first_names)} {random.choice(last_names)}"
                         random_days = random.randint(-15, 15)
                         appointment_date = (datetime.now() + timedelta(days=random_days)).strftime("%Y-%m-%d")
                         appointment_time = random.choice(times)
                         status = random.choice(statuses)
+                        
+                        date_str = appointment_date.replace('-', '')
+                        tracking_num = f"RX-{date_str}-{i+1000}" if status in ["Completed", "Pending Payment"] else None
                         
                         batch_data.append({
                             "account_username": "admin",
@@ -230,7 +232,7 @@ class DatabaseManager:
                             "status": status,
                             "diagnosis": "Routine checkup and clinical evaluation normal." if status in ["Completed", "Pending Payment"] else None,
                             "prescription": "Paracetamol 500mg every 4 hours as needed." if status in ["Completed", "Pending Payment"] else None,
-                            "tracking_number": f"RX-{appointment_date.replace('-', '')}-99" if status in ["Completed", "Pending Payment"] else None,
+                            "tracking_number": tracking_num,
                             "payment_method": "Cash" if status == "Completed" else None,
                             "payment_amount": "500.00" if status == "Completed" else None
                         })
