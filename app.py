@@ -163,17 +163,30 @@ class DatabaseManager:
         except Exception as e:
             return False, str(e)
 
-    def update_consultation(self, record_id, diagnosis, prescription):
-        """Strictly reserved for Doctors: updates appointment with medical diagnosis and prescription, moving status to Pending Payment"""
+    def update_consultation(self, record_id, diagnosis, prescription, appointment_date):
+        """Strictly reserved for Doctors: updates appointment with diagnosis, prescription, and generates a permanent tracking serial number"""
         try:
+            date_str = str(appointment_date).replace("-", "")
+            tracking_num = f"RX-{date_str}-{record_id}"
+            
             self.supabase.table("appointments").update({
                 "diagnosis": diagnosis,
                 "prescription": prescription,
+                "tracking_number": tracking_num,
                 "status": "Pending Payment"
             }).eq("id", record_id).execute()
             return True, None
         except Exception as e:
-            return False, str(e)
+            try:
+                # Fallback if tracking_number column hasn't been added to table yet
+                self.supabase.table("appointments").update({
+                    "diagnosis": diagnosis,
+                    "prescription": prescription,
+                    "status": "Pending Payment"
+                }).eq("id", record_id).execute()
+                return True, None
+            except Exception as e2:
+                return False, str(e2)
 
     def check_and_seed_records(self):
         """Ensures all 10 doctors have unevenly distributed patient counts totaling around 300 records"""
@@ -217,6 +230,7 @@ class DatabaseManager:
                             "status": status,
                             "diagnosis": "Routine checkup and clinical evaluation normal." if status in ["Completed", "Pending Payment"] else None,
                             "prescription": "Paracetamol 500mg every 4 hours as needed." if status in ["Completed", "Pending Payment"] else None,
+                            "tracking_number": f"RX-{appointment_date.replace('-', '')}-99" if status in ["Completed", "Pending Payment"] else None,
                             "payment_method": "Cash" if status == "Completed" else None,
                             "payment_amount": "500.00" if status == "Completed" else None
                         })
@@ -258,7 +272,7 @@ def render_modern_table(records):
     import pandas as pd
     df = pd.DataFrame(records)
     
-    cols_order = [c for c in ['id', 'patient_name', 'doctor_id', 'appointment_date', 'appointment_time', 'status', 'payment_method', 'payment_amount', 'diagnosis', 'prescription'] if c in df.columns]
+    cols_order = [c for c in ['id', 'patient_name', 'doctor_id', 'appointment_date', 'appointment_time', 'status', 'tracking_number', 'payment_method', 'payment_amount', 'diagnosis', 'prescription'] if c in df.columns]
     df = df[cols_order]
 
     st.dataframe(
@@ -276,6 +290,7 @@ def render_modern_table(records):
                 options=["Waiting", "Pending Payment", "Completed", "Cancelled"],
                 required=True
             ),
+            "tracking_number": st.column_config.TextColumn("Tracking ID"),
             "payment_method": st.column_config.TextColumn("Payment Method"),
             "payment_amount": st.column_config.TextColumn("Amount Paid"),
             "diagnosis": st.column_config.TextColumn("Diagnosis"),
@@ -626,7 +641,7 @@ def main():
         st.title("🩺 Medical Professional / Doctor Portal")
         st.markdown(f"Welcome, **{st.session_state.username}**. Managing clinical treatments and patient queue.")
         
-        doc_records = [r for r in all_records if selected_doctor == "All Doctors" or r.get("doctor_id") == selected_doctor] # Fixed bracket
+        doc_records = [r for r in all_records if selected_doctor == "All Doctors" or r.get("doctor_id") == selected_doctor]
         
         doc_tab1, doc_tab2, doc_tab3 = st.tabs([
             "🩺 Consultation & Treatment Room", 
@@ -660,9 +675,9 @@ def main():
                         save_consultation = st.form_submit_button("💾 Save Consultation & Send to Cashier", use_container_width=True)
                         
                         if save_consultation:
-                            success, err = db.update_consultation(chosen_record["id"], diagnosis, prescription)
+                            success, err = db.update_consultation(chosen_record["id"], diagnosis, prescription, chosen_record["appointment_date"])
                             if success:
-                                st.success(f"🎉 Consultation saved for {chosen_record['patient_name']}! Patient sent to cashier for payment verification.")
+                                st.success(f"🎉 Consultation saved for {chosen_record['patient_name']}! Permanent tracking ID generated and patient sent to cashier.")
                                 st.rerun()
                             else:
                                 st.error(f"Failed to save: {err}")
@@ -747,7 +762,7 @@ def main():
                 selected_card_rec = next((r for r in patient_records if r['id'] == sel_presc_id), None)
                 
                 if selected_card_rec:
-                    rx_serial_number = f"RX-{str(selected_card_rec.get('appointment_date', '2026')).replace('-', '')}-{selected_card_rec.get('id')}"
+                    rx_serial_number = selected_card_rec.get('tracking_number') or f"RX-PENDING-{selected_card_rec.get('id')}"
                     pay_status_display = f"Paid via {selected_card_rec.get('payment_method')} (₱{selected_card_rec.get('payment_amount')})" if selected_card_rec.get('payment_method') else "Unpaid / Pending Payment"
                     st.markdown(f"""
                         <div class="prescription-card">
