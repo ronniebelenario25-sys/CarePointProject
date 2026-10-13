@@ -121,7 +121,7 @@ class DatabaseManager:
             return True, None
         except Exception as e:
             if "payment_method" in str(e) or "payment_amount" in str(e):
-                return False, "Database note: Please add 'payment_method' and 'payment_amount' text columns to your Supabase 'appointments' table if not present, or run update without them."
+                return False, "Database note: Please add 'payment_method' and 'payment_amount' text columns to your Supabase 'appointments' table if not present."
             return False, str(e)
 
     def update_appointment_admin(self, record_id, account_username, patient_name, doctor_id, appointment_date, appointment_time, status):
@@ -511,7 +511,6 @@ def main():
                             edit_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(current_rec['appointment_time']) if current_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
                         
                         st.markdown("---")
-                        st.markdown("### 🔒 Immutable Medical Records")
                         st.text_area("Diagnosis", value=current_rec.get('diagnosis') or "None recorded yet.", disabled=True)
                         st.text_area("Prescription", value=current_rec.get('prescription') or "None recorded yet.", disabled=True)
                         
