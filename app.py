@@ -479,7 +479,7 @@ def main():
                             edit_status = st.selectbox("Status", ["Waiting", "Pending Payment", "Completed", "Cancelled"], index=["Waiting", "Pending Payment", "Completed", "Cancelled"].index(current_rec['status']) if current_rec['status'] in ["Waiting", "Pending Payment", "Completed", "Cancelled"] else 0)
                         
                         st.markdown("---")
-                        st.markdown("###Medical Records")
+                        st.markdown("###  Medical Records")
                         st.text_area("Diagnosis", value=current_rec.get('diagnosis') or "None recorded yet.", disabled=True)
                         st.text_area("Prescription", value=current_rec.get('prescription') or "None recorded yet.", disabled=True)
                         
@@ -583,7 +583,7 @@ def main():
         st.title("🩺 Medical Professional / Doctor Portal")
         st.markdown(f"Welcome, **{st.session_state.username}**. Managing clinical treatments and patient queue.")
         
-        doc_records = [r for r in all_records if selected_doctor == "All Doctors" or r.get("doctor_id") == selected_doctor]
+        doc_records = [r for r in all_records if selected_doctor == "All Doctors" or r.get("doctor_id"] == selected_doctor]
         
         doc_tab1, doc_tab2, doc_tab3 = st.tabs([
             "🩺 Consultation & Treatment Room", 
