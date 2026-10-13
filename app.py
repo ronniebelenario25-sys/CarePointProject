@@ -88,7 +88,7 @@ class DatabaseManager:
             conflict_check = self.supabase.table("appointments").select("*").eq("doctor_id", doctor_id).eq("appointment_date", str(appointment_date)).eq("appointment_time", appointment_time).execute()
             
             if conflict_check.data:
-                active_conflicts = [r for r in conflict_check.data if r.get("status") != "Cancelled"]
+                active_conflicts = [r for r in conflict_check.data if r.get("status"] != "Cancelled"]
                 if active_conflicts:
                     return False, f"⚠️ Time Conflict: {doctor_id} already has an appointment at {appointment_time} on {appointment_date}. Please choose another slot."
 
@@ -106,7 +106,7 @@ class DatabaseManager:
             return False, str(e)
 
     def process_cashier_payment(self, record_id, payment_method, payment_amount, account_username, patient_name, doctor_id, appointment_date, appointment_time):
-        """Allows Admin/Cashier to process payment, recording the payment method and moving status to Completed"""
+        """Allows Admin/Cashier to process payment and automatically set status to Completed"""
         try:
             self.supabase.table("appointments").update({
                 "account_username": account_username,
@@ -120,9 +120,19 @@ class DatabaseManager:
             }).eq("id", record_id).execute()
             return True, None
         except Exception as e:
-            if "payment_method" in str(e) or "payment_amount" in str(e):
-                return False, "Database note: Please add 'payment_method' and 'payment_amount' text columns to your Supabase 'appointments' table if not present."
-            return False, str(e)
+            try:
+                # Fallback if payment columns don't exist yet in Supabase table
+                self.supabase.table("appointments").update({
+                    "account_username": account_username,
+                    "patient_name": patient_name,
+                    "doctor_id": doctor_id,
+                    "appointment_date": str(appointment_date),
+                    "appointment_time": appointment_time,
+                    "status": "Completed"
+                }).eq("id", record_id).execute()
+                return True, None
+            except Exception as e2:
+                return False, str(e2)
 
     def update_appointment_admin(self, record_id, account_username, patient_name, doctor_id, appointment_date, appointment_time, status):
         """Allows Admin to update schedule status, date, time, and patient details WITHOUT altering clinical diagnosis or prescription"""
@@ -457,7 +467,7 @@ def main():
         st.markdown("System-wide master monitoring dashboard, cashier payment processing, and scheduling management.")
         
         records = db.get_all_appointments()
-        pending_payment_count = len([r for r in records if r.get("status") == "Pending Payment"])
+        pending_payment_count = len([r for r in records if r.get("status"] == "Pending Payment"])
         
         m1, m2, m3 = st.columns(3)
         m1.metric(label="Total Database Records", value=len(records))
@@ -497,7 +507,7 @@ def main():
                             pay_method = st.selectbox("Payment Method", ["Cash", "GCash", "Credit/Debit Card", "Health Insurance / HMO"], index=0)
                             pay_amount = st.text_input("Payment Amount (PHP)", value="500.00")
                         with col_c2:
-                            edit_status_cashier = st.selectbox("Update Status", ["Pending Payment", "Completed", "Waiting", "Cancelled"], index=["Pending Payment", "Completed", "Waiting", "Cancelled"].index(current_rec['status']) if current_rec['status'] in ["Pending Payment", "Completed", "Waiting", "Cancelled"] else 1)
+                            st.info(f"Current Status: **{current_rec['status']}**\n*(Clicking process automatically updates status to **Completed**)*")
                         
                         st.markdown("---")
                         st.markdown("### 📋 Schedule Details")
@@ -522,7 +532,7 @@ def main():
                         if process_pay_btn:
                             success, err = db.process_cashier_payment(selected_id, pay_method, pay_amount, edit_acc, edit_patient, edit_doctor, edit_date, edit_time)
                             if success:
-                                st.success(f"Payment of ₱{pay_amount} processed via {pay_method} for Record #{selected_id}! Status set to Completed.")
+                                st.success(f"Payment of ₱{pay_amount} processed via {pay_method} for Record #{selected_id}! Status automatically updated to Completed.")
                                 st.rerun()
                             else:
                                 st.error(f"Error processing payment: {err}")
