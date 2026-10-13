@@ -47,7 +47,7 @@ class DatabaseManager:
             return False, str(e)
 
     def delete_user_completely(self, user_id, username):
-        """Permanently deletes a user account and all their associated appointments by username handle"""
+        """Permanently deletes a user account and all their associated appointments"""
         try:
             self.supabase.table("users").delete().eq("id", user_id).execute()
             self.supabase.table("users").delete().eq("username", username).execute()
@@ -72,16 +72,16 @@ class DatabaseManager:
         except Exception as e:
             return []
 
-    def get_patient_appointments(self, username):
-        """Fetches appointments for a specific patient username handle"""
+    def get_patient_appointments(self, patient_identifier):
+        """Fetches appointments for a specific patient identifier"""
         try:
-            response = self.supabase.table("appointments").select("*").eq("patient_name", username).order("appointment_date", desc=False).execute()
+            response = self.supabase.table("appointments").select("*").eq("patient_name", patient_identifier).order("appointment_date", desc=False).execute()
             return response.data
         except Exception as e:
             return []
 
-    def add_appointment(self, username, doctor_id, appointment_date, appointment_time, status):
-        """Adds a new appointment tied securely to the unique account username handle"""
+    def add_appointment(self, patient_name, doctor_id, appointment_date, appointment_time, status):
+        """Adds a new appointment with double-booking prevention checks"""
         try:
             conflict_check = self.supabase.table("appointments").select("*").eq("doctor_id", doctor_id).eq("appointment_date", str(appointment_date)).eq("appointment_time", appointment_time).execute()
             
@@ -91,7 +91,7 @@ class DatabaseManager:
                     return False, f"⚠️ Time Conflict: {doctor_id} already has an appointment at {appointment_time} on {appointment_date}. Please choose another slot."
 
             data = {
-                "patient_name": username, # Uses unique username handle as the primary unique key
+                "patient_name": patient_name,
                 "doctor_id": doctor_id,
                 "appointment_date": str(appointment_date),
                 "appointment_time": appointment_time,
@@ -102,11 +102,11 @@ class DatabaseManager:
         except Exception as e:
             return False, str(e)
 
-    def update_appointment(self, record_id, username, doctor_id, appointment_date, appointment_time, status, diagnosis, prescription):
+    def update_appointment(self, record_id, patient_name, doctor_id, appointment_date, appointment_time, status, diagnosis, prescription):
         """Allows updating/editing patient appointments"""
         try:
             self.supabase.table("appointments").update({
-                "patient_name": username,
+                "patient_name": patient_name,
                 "doctor_id": doctor_id,
                 "appointment_date": str(appointment_date),
                 "appointment_time": appointment_time,
@@ -201,28 +201,15 @@ def apply_custom_css():
         </style>
     """, unsafe_allow_html=True)
 
-def render_modern_table(records, users_list=None):
-    """Renders records using Streamlit's native data grid and translates username handles to full names for readability"""
+def render_modern_table(records):
+    """Renders records using Streamlit's native data grid with customized column configurations"""
     if not records:
         st.warning("No records found.")
         return
 
     import pandas as pd
-    formatted_records = []
+    df = pd.DataFrame(records)
     
-    username_to_fullname = {}
-    if users_list:
-        for u in users_list:
-            username_to_fullname[u.get('username')] = u.get('full_name') or u.get('username')
-
-    for r in records:
-        rec_copy = r.copy()
-        raw_pname = rec_copy.get('patient_name')
-        if raw_pname in username_to_fullname:
-            rec_copy['patient_name'] = f"{username_to_fullname[raw_pname]} ({raw_pname})"
-        formatted_records.append(rec_copy)
-
-    df = pd.DataFrame(formatted_records)
     cols_order = [c for c in ['id', 'patient_name', 'doctor_id', 'appointment_date', 'appointment_time', 'status', 'diagnosis', 'prescription'] if c in df.columns]
     df = df[cols_order]
 
@@ -232,7 +219,7 @@ def render_modern_table(records, users_list=None):
         hide_index=True,
         column_config={
             "id": st.column_config.NumberColumn("ID", format="%d"),
-            "patient_name": st.column_config.TextColumn("Patient Name (Account)"),
+            "patient_name": st.column_config.TextColumn("Patient Name"),
             "doctor_id": st.column_config.TextColumn("Doctor"),
             "appointment_date": st.column_config.DateColumn("Date"),
             "appointment_time": st.column_config.TextColumn("Time"),
@@ -367,7 +354,7 @@ def main():
         if str(u.get('role')).lower() == 'patient':
             disp_name = u.get('full_name') or u.get('username')
             display_label = f"ID #{u.get('id')} - {disp_name} ({u.get('username')})"
-            patient_options_map[display_label] = u.get('username')
+            patient_options_map[display_label] = disp_name
             
     for r in all_records:
         p_name = r.get('patient_name')
@@ -378,18 +365,17 @@ def main():
     patient_labels_list = sorted(list(patient_options_map.keys()))
     if not patient_labels_list:
         patient_labels_list = ["ID #1 - Patient"]
-        patient_options_map["ID #1 - Patient"] = "patient"
+        patient_options_map["ID #1 - Patient"] = "Patient"
 
     if role == "Patient":
         st.sidebar.markdown("---")
         if st.session_state.username == "patient":
             selected_label = st.sidebar.selectbox("Demo Patient Switcher (ID Filtered)", patient_labels_list)
-            selected_active_username = patient_options_map[selected_label]
+            selected_active_patient = patient_options_map[selected_label]
         else:
-            selected_active_username = st.session_state.username
             current_user_obj = next((u for u in users_list if str(u.get('username')) == str(st.session_state.username)), {})
-            display_name_sidebar = current_user_obj.get('full_name') or st.session_state.get('full_name') or st.session_state.username
-            st.sidebar.info(f"**Viewing Dashboard for:**\n`{display_name_sidebar}` (ID #{st.session_state.get('user_id')})")
+            selected_active_patient = current_user_obj.get('full_name') or st.session_state.get('full_name') or st.session_state.username
+            st.sidebar.info(f"**Viewing Dashboard for:**\n`{selected_active_patient}` (ID #{st.session_state.get('user_id')})")
 
     st.sidebar.markdown("---")
     
@@ -427,7 +413,7 @@ def main():
         
         with admin_tab1:
             st.subheader("📋 Master Appointment Database")
-            render_modern_table(records, users_list)
+            render_modern_table(records)
                 
         with admin_tab2:
             st.subheader("💵 Cashier Payment Verification & Record Editing")
@@ -444,7 +430,7 @@ def main():
                     with st.form("admin_edit_form"):
                         col_e1, col_e2 = st.columns(2)
                         with col_e1:
-                            edit_patient = st.text_input("Patient Username / Handle", value=current_rec['patient_name'])
+                            edit_patient = st.text_input("Patient Name", value=current_rec['patient_name'])
                             edit_doctor = st.selectbox("Doctor ID", doctors_list[1:], index=doctors_list[1:].index(current_rec['doctor_id']) if current_rec['doctor_id'] in doctors_list[1:] else 0)
                             edit_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=current_rec['appointment_date'])
                         with col_e2:
@@ -528,7 +514,7 @@ def main():
             with st.form("admin_add_form"):
                 col_a1, col_a2 = st.columns(2)
                 with col_a1:
-                    new_patient = st.text_input("Patient Username / Handle")
+                    new_patient = st.text_input("Patient Name")
                     new_doctor = st.selectbox("Assign Doctor", doctors_list[1:], key="add_doc")
                 with col_a2:
                     new_date = st.date_input("Appointment Date")
@@ -546,7 +532,7 @@ def main():
                         else:
                             st.error(f"Failed to add record: {err}")
                     else:
-                        st.error("Please enter a valid patient username.")
+                        st.error("Please enter a valid patient name.")
 
     # --- DOCTOR PORTAL ---
     elif role == "Doctor":
@@ -572,7 +558,7 @@ def main():
                 chosen_record = next((r for r in doc_records if f"{r['patient_name']} (ID: {r['id']} - {r['appointment_date']} {r['appointment_time']})" == selected_patient_str), None)
                 
                 if chosen_record:
-                    st.info(f"**Current Patient Handle:** {chosen_record['patient_name']} | **Assigned Doctor:** {chosen_record['doctor_id']} | **Time Slot:** {chosen_record['appointment_date']} at {chosen_record['appointment_time']}")
+                    st.info(f"**Current Patient:** {chosen_record['patient_name']} | **Assigned Doctor:** {chosen_record['doctor_id']} | **Time Slot:** {chosen_record['appointment_date']} at {chosen_record['appointment_time']}")
                     
                     with st.form("consultation_form"):
                         st.markdown("### Clinical Examination Notes")
@@ -602,7 +588,7 @@ def main():
             
             st.markdown("---")
             st.subheader(f"🕒 Patient Schedule — {selected_doctor}")
-            render_modern_table(doc_records, users_list)
+            render_modern_table(doc_records)
 
         with doc_tab3:
             st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
@@ -610,7 +596,7 @@ def main():
             
             pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
             if pending_records:
-                render_modern_table(pending_records, users_list)
+                render_modern_table(pending_records)
             else:
                 st.info(f"No patients currently waiting for payment with {selected_doctor}.")
 
@@ -622,26 +608,26 @@ def main():
         my_real_full_name = logged_in_user_obj.get('full_name') or st.session_state.get('full_name') or st.session_state.username
         
         if st.session_state.username == "patient":
-            welcome_display_name = selected_active_username
-            filter_username = selected_active_username
+            welcome_display_name = selected_active_patient
+            default_booking_name = selected_active_patient
         else:
             welcome_display_name = my_real_full_name
-            filter_username = st.session_state.username  # Strict unique account handle used for database queries!
+            default_booking_name = my_real_full_name
+            selected_active_patient = my_real_full_name
 
-        st.markdown(f"Welcome, **{welcome_display_name}** (`{filter_username}`).")
+        st.markdown(f"Welcome, **{welcome_display_name}**.")
         
-        # Filter appointments strictly by the unique account username handle to prevent name collisions
-        patient_records = [r for r in all_records if r.get('patient_name') == filter_username]
+        patient_records = [r for r in all_records if r.get('patient_name') == selected_active_patient]
         
         tab1, tab2, tab3 = st.tabs(["📅 Book New Appointment", "📋 My Confidential Appointments", "✏️ Edit My Appointments"])
         
         with tab1:
-            st.subheader(f"Schedule a New Visit for {welcome_display_name}")
+            st.subheader(f"Schedule a New Visit")
             with st.form("booking_form"):
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    # Display real full name on form, while passing filter_username to database backend
-                    p_name_display = st.text_input("Patient Full Name", value=welcome_display_name, disabled=True)
+                    # Patient Full Name is now editable so users can book for family members / dependents
+                    p_name = st.text_input("Patient Full Name", value=default_booking_name)
                     doc_choice = st.selectbox("Select Attending Physician", doctors_list[1:])
                 with col_b:
                     app_date = st.date_input("Preferred Date")
@@ -650,19 +636,22 @@ def main():
                 book_submit = st.form_submit_button("Confirm & Secure Booking", use_container_width=True)
                 
                 if book_submit:
-                    success, err_msg = db.add_appointment(filter_username, doc_choice, app_date, app_time, "Waiting")
-                    if success:
-                        st.success(f"🎉 Appointment successfully booked for {welcome_display_name} ({filter_username}) with {doc_choice}!")
-                        st.rerun()
+                    if p_name.strip():
+                        success, err_msg = db.add_appointment(p_name.strip(), doc_choice, app_date, app_time, "Waiting")
+                        if success:
+                            st.success(f"🎉 Appointment successfully booked for {p_name.strip()} with {doc_choice}!")
+                            st.rerun()
+                        else:
+                            st.error(err_msg)
                     else:
-                        st.error(err_msg)
+                        st.error("Please enter a valid patient name.")
                         
         with tab2:
-            st.subheader(f"📋 Appointments for {welcome_display_name}")
-            render_modern_table(patient_records, users_list)
+            st.subheader(f"📋 Appointments for {selected_active_patient}")
+            render_modern_table(patient_records)
 
         with tab3:
-            st.subheader(f"✏️ Edit, Cancel, or Delete Appointments for {welcome_display_name}")
+            st.subheader(f"✏️ Edit, Cancel, or Delete Appointments for {selected_active_patient}")
             if patient_records:
                 pat_options = [f"ID: {r['id']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']} {r['appointment_time']} | Status: {r['status']}" for r in patient_records]
                 selected_pat_rec_str = st.selectbox("Select Appointment to Modify", pat_options, key="pat_edit_select")
@@ -674,7 +663,7 @@ def main():
                     with st.form("patient_self_edit_form"):
                         col_p1, col_p2 = st.columns(2)
                         with col_p1:
-                            edit_p_name = st.text_input("Patient Username Handle", value=curr_pat_rec['patient_name'], disabled=True)
+                            edit_p_name = st.text_input("Patient Full Name", value=curr_pat_rec['patient_name'])
                             edit_p_doc = st.selectbox("Attending Physician", doctors_list[1:], index=doctors_list[1:].index(curr_pat_rec['doctor_id']) if curr_pat_rec['doctor_id'] in doctors_list[1:] else 0)
                             edit_p_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=curr_pat_rec['appointment_date'])
                         with col_p2:
@@ -687,7 +676,7 @@ def main():
                         delete_p_booking = col_pb3.form_submit_button("🗑️ Delete", use_container_width=True)
                         
                         if save_p_edit:
-                            success, err = db.update_appointment(sel_pat_id, filter_username, edit_p_doc, edit_p_date, edit_p_time, edit_p_status, curr_pat_rec.get('diagnosis'), curr_pat_rec.get('prescription'))
+                            success, err = db.update_appointment(sel_pat_id, edit_p_name, edit_p_doc, edit_p_date, edit_p_time, edit_p_status, curr_pat_rec.get('diagnosis'), curr_pat_rec.get('prescription'))
                             if success:
                                 st.success(f"Appointment #{sel_pat_id} updated successfully!")
                                 st.rerun()
@@ -695,7 +684,7 @@ def main():
                                 st.error(f"Error: {err}")
                                 
                         if cancel_p_booking:
-                            success, err = db.update_appointment(sel_pat_id, filter_username, curr_pat_rec['doctor_id'], curr_pat_rec['appointment_date'], curr_pat_rec['appointment_time'], "Cancelled", curr_pat_rec.get('diagnosis'), curr_pat_rec.get('prescription'))
+                            success, err = db.update_appointment(sel_pat_id, edit_p_name, curr_pat_rec['doctor_id'], curr_pat_rec['appointment_date'], curr_pat_rec['appointment_time'], "Cancelled", curr_pat_rec.get('diagnosis'), curr_pat_rec.get('prescription'))
                             if success:
                                 st.warning(f"Appointment #{sel_pat_id} has been cancelled.")
                                 st.rerun()
@@ -710,7 +699,7 @@ def main():
                             except Exception as e:
                                 st.error(f"Error deleting record: {e}")
             else:
-                st.info(f"No appointments found for {welcome_display_name}.")
+                st.info(f"No appointments found for {selected_active_patient}.")
 
 if __name__ == "__main__":
     main()
