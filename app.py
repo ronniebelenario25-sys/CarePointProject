@@ -65,7 +65,7 @@ class DatabaseManager:
             return []
 
     def get_all_appointments(self):
-        """Fetches all master records (Restricted to Admin only)"""
+        """Fetches all master records"""
         try:
             response = self.supabase.table("appointments").select("*").order("appointment_date", desc=False).execute()
             return response.data
@@ -105,8 +105,8 @@ class DatabaseManager:
         except Exception as e:
             return False, str(e)
 
-    def update_appointment(self, record_id, account_username, patient_name, doctor_id, appointment_date, appointment_time, status, diagnosis, prescription):
-        """Allows updating/editing patient appointments"""
+    def update_appointment_admin(self, record_id, account_username, patient_name, doctor_id, appointment_date, appointment_time, status):
+        """Allows Admin to update schedule status, date, time, and patient details WITHOUT altering clinical diagnosis or prescription"""
         try:
             self.supabase.table("appointments").update({
                 "account_username": account_username,
@@ -114,16 +114,29 @@ class DatabaseManager:
                 "doctor_id": doctor_id,
                 "appointment_date": str(appointment_date),
                 "appointment_time": appointment_time,
-                "status": status,
-                "diagnosis": diagnosis,
-                "prescription": prescription
+                "status": status
+            }).eq("id", record_id).execute()
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
+    def update_appointment_patient(self, record_id, account_username, patient_name, doctor_id, appointment_date, appointment_time, status):
+        """Allows Patient to update/reschedule or cancel their appointment details WITHOUT altering medical diagnosis or prescription"""
+        try:
+            self.supabase.table("appointments").update({
+                "account_username": account_username,
+                "patient_name": patient_name,
+                "doctor_id": doctor_id,
+                "appointment_date": str(appointment_date),
+                "appointment_time": appointment_time,
+                "status": status
             }).eq("id", record_id).execute()
             return True, None
         except Exception as e:
             return False, str(e)
 
     def update_consultation(self, record_id, diagnosis, prescription):
-        """Updates appointment with diagnosis and prescription, automatically moving status to Pending Payment"""
+        """Strictly reserved for Doctors: updates appointment with medical diagnosis and prescription, moving status to Pending Payment"""
         try:
             self.supabase.table("appointments").update({
                 "diagnosis": diagnosis,
@@ -195,13 +208,13 @@ def apply_custom_css():
         .main {
             background-color: #f8fafc;
         }
-        .metric-card {
+        .prescription-card {
             background: #ffffff;
-            border: 1px solid #e2e8f0;
-            padding: 20px;
+            border: 1px solid #cbd5e1;
+            padding: 24px;
             border-radius: 12px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-            text-align: center;
+            margin-bottom: 20px;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -363,7 +376,8 @@ def main():
     selected_doctor = "All Doctors"
     doctors_list = [
         "All Doctors", "Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos", 
-        "Dr. Garcia", "Dr. Mendoza", "Dr. Torres", "Dr. Ramos", "Dr. Lim", "Dr. Villanueva"
+        "Dr. Garcia", "Dr. Mendoza", "Dr. Torres", "Dr. Ramos", 
+        "Dr. Lim", "Dr. Villanueva"
     ]
     if role == "Doctor":
         st.sidebar.markdown("---")
@@ -417,7 +431,7 @@ def main():
     # --- ADMIN PORTAL ---
     if role == "Admin":
         st.title("🛠️ Administrative Control Center (Cashier & Master Management)")
-        st.markdown("System-wide master monitoring dashboard, cashier payment verification, and record management.")
+        st.markdown("System-wide master monitoring dashboard, cashier payment verification, and scheduling management.")
         
         records = db.get_all_appointments()
         pending_payment_count = len([r for r in records if r.get("status") == "Pending Payment"])
@@ -431,7 +445,7 @@ def main():
         
         admin_tab1, admin_tab2, admin_tab3, admin_tab4 = st.tabs([
             "📋 Master Appointment Table", 
-            "💵 Cashier & Edit Records", 
+            "💵 Cashier & Schedule Editing", 
             "👥 Manage User Accounts",
             "➕ Add New Record"
         ])
@@ -441,8 +455,8 @@ def main():
             render_modern_table(records)
                 
         with admin_tab2:
-            st.subheader("💵 Cashier Payment Verification & Record Editing")
-            st.markdown("Select a patient appointment to verify payment, mark as **Completed**, or update details.")
+            st.subheader("💵 Cashier Payment Verification & Schedule Management")
+            st.markdown("Select a patient appointment to verify payment, mark as **Completed**, or update scheduling details. *(Note: Medical diagnoses and prescriptions are read-only to maintain accountability).*")
             
             if records:
                 record_options = [f"ID: {r['id']} | Patient: {r['patient_name']} | Status: {r['status']} | Dr: {r['doctor_id']}" for r in records]
@@ -463,17 +477,19 @@ def main():
                             edit_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(current_rec['appointment_time']) if current_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
                             edit_status = st.selectbox("Status", ["Waiting", "Pending Payment", "Completed", "Cancelled"], index=["Waiting", "Pending Payment", "Completed", "Cancelled"].index(current_rec['status']) if current_rec['status'] in ["Waiting", "Pending Payment", "Completed", "Cancelled"] else 0)
                         
-                        edit_diag = st.text_area("Diagnosis", value=current_rec.get('diagnosis') or "")
-                        edit_presc = st.text_area("Prescription", value=current_rec.get('prescription') or "")
+                        st.markdown("---")
+                        st.markdown("### 🔒 Immutable Medical Records (Read-Only for Admin)")
+                        st.text_area("Diagnosis (Doctor Only)", value=current_rec.get('diagnosis') or "None recorded yet.", disabled=True)
+                        st.text_area("Prescription (Doctor Only)", value=current_rec.get('prescription') or "None recorded yet.", disabled=True)
                         
                         col_btn1, col_btn2 = st.columns(2)
-                        update_btn = col_btn1.form_submit_button("💾 Save Changes & Mark Paid", use_container_width=True)
+                        update_btn = col_btn1.form_submit_button("💾 Save Schedule & Mark Paid", use_container_width=True)
                         delete_btn = col_btn2.form_submit_button("🗑️ Delete Record", use_container_width=True)
                         
                         if update_btn:
-                            success, err = db.update_appointment(selected_id, edit_acc, edit_patient, edit_doctor, edit_date, edit_time, edit_status, edit_diag, edit_presc)
+                            success, err = db.update_appointment_admin(selected_id, edit_acc, edit_patient, edit_doctor, edit_date, edit_time, edit_status)
                             if success:
-                                st.success(f"Record #{selected_id} updated successfully!")
+                                st.success(f"Record #{selected_id} schedule updated successfully!")
                                 st.rerun()
                             else:
                                 st.error(f"Error updating record: {err}")
@@ -674,9 +690,33 @@ def main():
         with tab2:
             st.subheader(f"📋 Appointments Booked Under Your Account")
             render_modern_table(patient_records)
+            
+            st.markdown("---")
+            st.subheader("🩺 View Clinical Prescriptions & Diagnosis Cards")
+            if patient_records:
+                presc_options = [f"ID: {r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']}" for r in patient_records]
+                selected_presc_str = st.selectbox("Select Appointment to View Prescription", presc_options, key="patient_presc_view")
+                
+                sel_presc_id = int(selected_presc_str.split("|")[0].replace("ID:", "").strip())
+                selected_card_rec = next((r for r in patient_records if r['id'] == sel_presc_id), None)
+                
+                if selected_card_rec:
+                    st.markdown(f"""
+                        <div class="prescription-card">
+                            <h3>🏥 CarePoint Official Medical Prescription & Diagnosis</h3>
+                            <p><b>Patient:</b> {selected_card_rec.get('patient_name')} | <b>Attending Doctor:</b> {selected_card_rec.get('doctor_id')}</p>
+                            <p><b>Appointment Date:</b> {selected_card_rec.get('appointment_date')} at {selected_card_rec.get('appointment_time')} | <b>Status:</b> {selected_card_rec.get('status')}</p>
+                            <hr style="margin: 15px 0;">
+                            <h4>Medical Diagnosis</h4>
+                            <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('diagnosis') or 'No diagnosis recorded yet.'}</p>
+                            <h4 style="margin-top: 20px;">Prescription & Treatment Plan</h4>
+                            <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('prescription') or 'No prescription issued yet.'}</p>
+                        </div>
+                    """, unsafe_allow_html=True)
 
         with tab3:
-            st.subheader(f"✏️ Edit, Cancel, or Delete Appointments")
+            st.subheader(f"✏️ Reschedule, Cancel, or Delete Appointments")
+            st.markdown("*Note: Medical prescriptions and diagnoses cannot be edited by patients to preserve medical integrity.*")
             if patient_records:
                 pat_options = [f"ID: {r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']} {r['appointment_time']} | Status: {r['status']}" for r in patient_records]
                 selected_pat_rec_str = st.selectbox("Select Appointment to Modify", pat_options, key="pat_edit_select")
@@ -701,7 +741,7 @@ def main():
                         delete_p_booking = col_pb3.form_submit_button("🗑️ Delete", use_container_width=True)
                         
                         if save_p_edit:
-                            success, err = db.update_appointment(sel_pat_id, filter_username, edit_p_name, edit_p_doc, edit_p_date, edit_p_time, edit_p_status, curr_pat_rec.get('diagnosis'), curr_pat_rec.get('prescription'))
+                            success, err = db.update_appointment_patient(sel_pat_id, filter_username, edit_p_name, edit_p_doc, edit_p_date, edit_p_time, edit_p_status)
                             if success:
                                 st.success(f"Appointment #{sel_pat_id} updated successfully!")
                                 st.rerun()
@@ -709,7 +749,7 @@ def main():
                                 st.error(f"Error: {err}")
                                 
                         if cancel_p_booking:
-                            success, err = db.update_appointment(sel_pat_id, filter_username, edit_p_name, curr_pat_rec['doctor_id'], curr_pat_rec['appointment_date'], curr_pat_rec['appointment_time'], "Cancelled", curr_pat_rec.get('diagnosis'), curr_pat_rec.get('prescription'))
+                            success, err = db.update_appointment_patient(sel_pat_id, filter_username, edit_p_name, curr_pat_rec['doctor_id'], curr_pat_rec['appointment_date'], curr_pat_rec['appointment_time'], "Cancelled")
                             if success:
                                 st.warning(f"Appointment #{sel_pat_id} has been cancelled.")
                                 st.rerun()
