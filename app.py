@@ -77,7 +77,6 @@ class DatabaseManager:
         try:
             response = self.supabase.table("appointments").select("*").eq("account_username", username).order("appointment_date", desc=False).execute()
             if not response.data:
-                # Fallback for older seeded records matching patient name
                 response = self.supabase.table("appointments").select("*").eq("patient_name", username).order("appointment_date", desc=False).execute()
             return response.data
         except Exception as e:
@@ -104,8 +103,6 @@ class DatabaseManager:
             self.supabase.table("appointments").insert(data).execute()
             return True, None
         except Exception as e:
-            if "account_username" in str(e):
-                return False, "Database error: Please add 'account_username' column using: ALTER TABLE appointments ADD COLUMN account_username TEXT;"
             return False, str(e)
 
     def update_appointment(self, record_id, account_username, patient_name, doctor_id, appointment_date, appointment_time, status, diagnosis, prescription):
@@ -210,7 +207,7 @@ def apply_custom_css():
     """, unsafe_allow_html=True)
 
 def render_modern_table(records):
-    """Renders records using Streamlit's native data grid with customized column configurations"""
+    """Renders records using Streamlit's native data grid without the account username column to maximize space"""
     if not records:
         st.warning("No records found.")
         return
@@ -218,7 +215,8 @@ def render_modern_table(records):
     import pandas as pd
     df = pd.DataFrame(records)
     
-    cols_order = [c for c in ['id', 'account_username', 'patient_name', 'doctor_id', 'appointment_date', 'appointment_time', 'status', 'diagnosis', 'prescription'] if c in df.columns]
+    # Exclude 'account_username' from display order to streamline the UI and save space
+    cols_order = [c for c in ['id', 'patient_name', 'doctor_id', 'appointment_date', 'appointment_time', 'status', 'diagnosis', 'prescription'] if c in df.columns]
     df = df[cols_order]
 
     st.dataframe(
@@ -227,7 +225,6 @@ def render_modern_table(records):
         hide_index=True,
         column_config={
             "id": st.column_config.NumberColumn("ID", format="%d"),
-            "account_username": st.column_config.TextColumn("Account User"),
             "patient_name": st.column_config.TextColumn("Patient Name"),
             "doctor_id": st.column_config.TextColumn("Doctor"),
             "appointment_date": st.column_config.DateColumn("Date"),
@@ -441,7 +438,7 @@ def main():
                         col_e1, col_e2 = st.columns(2)
                         with col_e1:
                             edit_acc = st.text_input("Account Username", value=current_rec.get('account_username') or current_rec['patient_name'])
-                            edit_patient = st.text_input("Patient Name", value=current_rec['patient_name'])
+                            edit_patient = st.text_input("Patient Full Name", value=current_rec['patient_name'])
                             edit_doctor = st.selectbox("Doctor ID", doctors_list[1:], index=doctors_list[1:].index(current_rec['doctor_id']) if current_rec['doctor_id'] in doctors_list[1:] else 0)
                         with col_e2:
                             edit_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=current_rec['appointment_date'])
@@ -570,7 +567,7 @@ def main():
                 chosen_record = next((r for r in doc_records if f"{r['patient_name']} (ID: {r['id']} - {r['appointment_date']} {r['appointment_time']})" == selected_patient_str), None)
                 
                 if chosen_record:
-                    st.info(f"**Patient:** {chosen_record['patient_name']} (Account: {chosen_record.get('account_username', 'N/A')}) | **Assigned Doctor:** {chosen_record['doctor_id']} | **Time Slot:** {chosen_record['appointment_date']} at {chosen_record['appointment_time']}")
+                    st.info(f"**Patient:** {chosen_record['patient_name']} | **Assigned Doctor:** {chosen_record['doctor_id']} | **Time Slot:** {chosen_record['appointment_date']} at {chosen_record['appointment_time']}")
                     
                     with st.form("consultation_form"):
                         st.markdown("### Clinical Examination Notes")
@@ -623,12 +620,11 @@ def main():
             filter_username = selected_active_username
             welcome_display_name = selected_active_username
         else:
-            filter_username = st.session_state.username  # Unique account handle used to track all bookings
+            filter_username = st.session_state.username
             welcome_display_name = my_real_full_name
 
         st.markdown(f"Welcome, **{welcome_display_name}**.")
         
-        # Fetch all appointments booked under this account username (includes dependents/different names)
         patient_records = db.get_patient_appointments(filter_username)
         
         tab1, tab2, tab3 = st.tabs(["📅 Book New Appointment", "📋 My Confidential Appointments", "✏️ Edit My Appointments"])
@@ -638,7 +634,6 @@ def main():
             with st.form("booking_form"):
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    # User can enter their own name or a dependent's name (e.g., their child)
                     p_name = st.text_input("Patient Full Name", value=my_real_full_name)
                     doc_choice = st.selectbox("Select Attending Physician", doctors_list[1:])
                 with col_b:
@@ -659,7 +654,7 @@ def main():
                         st.error("Please enter a valid patient name.")
                         
         with tab2:
-            st.subheader(f"📋 Appointments Booked by Account: `{filter_username}`")
+            st.subheader(f"📋 Appointments Booked Under Your Account")
             render_modern_table(patient_records)
 
         with tab3:
@@ -711,7 +706,7 @@ def main():
                             except Exception as e:
                                 st.error(f"Error deleting record: {e}")
             else:
-                st.info(f"No appointments found under account `{filter_username}`.")
+                st.info(f"No appointments found under your account.")
 
 if __name__ == "__main__":
     main()
