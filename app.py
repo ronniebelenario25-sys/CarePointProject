@@ -583,7 +583,7 @@ def main():
         st.title("🩺 Medical Professional / Doctor Portal")
         st.markdown(f"Welcome, **{st.session_state.username}**. Managing clinical treatments and patient queue.")
         
-        doc_records = [r for r in all_records if selected_doctor == "All Doctors" or r.get("doctor_id"] == selected_doctor]
+        doc_records = [r for r in all_records if selected_doctor == "All Doctors" or r.get("doctor_id") == selected_doctor]
         
         doc_tab1, doc_tab2, doc_tab3 = st.tabs([
             "🩺 Consultation & Treatment Room", 
