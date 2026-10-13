@@ -105,6 +105,25 @@ class DatabaseManager:
         except Exception as e:
             return False, str(e)
 
+    def process_cashier_payment(self, record_id, payment_method, payment_amount, account_username, patient_name, doctor_id, appointment_date, appointment_time):
+        """Allows Admin/Cashier to process payment, recording the payment method and moving status to Completed"""
+        try:
+            self.supabase.table("appointments").update({
+                "account_username": account_username,
+                "patient_name": patient_name,
+                "doctor_id": doctor_id,
+                "appointment_date": str(appointment_date),
+                "appointment_time": appointment_time,
+                "status": "Completed",
+                "payment_method": payment_method,
+                "payment_amount": str(payment_amount)
+            }).eq("id", record_id).execute()
+            return True, None
+        except Exception as e:
+            if "payment_method" in str(e) or "payment_amount" in str(e):
+                return False, "Database note: Please add 'payment_method' and 'payment_amount' text columns to your Supabase 'appointments' table if not present, or run update without them."
+            return False, str(e)
+
     def update_appointment_admin(self, record_id, account_username, patient_name, doctor_id, appointment_date, appointment_time, status):
         """Allows Admin to update schedule status, date, time, and patient details WITHOUT altering clinical diagnosis or prescription"""
         try:
@@ -188,7 +207,9 @@ class DatabaseManager:
                             "appointment_time": appointment_time,
                             "status": status,
                             "diagnosis": "Routine checkup and clinical evaluation normal." if status in ["Completed", "Pending Payment"] else None,
-                            "prescription": "Paracetamol 500mg every 4 hours as needed." if status in ["Completed", "Pending Payment"] else None
+                            "prescription": "Paracetamol 500mg every 4 hours as needed." if status in ["Completed", "Pending Payment"] else None,
+                            "payment_method": "Cash" if status == "Completed" else None,
+                            "payment_amount": "500.00" if status == "Completed" else None
                         })
                 
                 for j in range(0, len(batch_data), 100):
@@ -228,7 +249,7 @@ def render_modern_table(records):
     import pandas as pd
     df = pd.DataFrame(records)
     
-    cols_order = [c for c in ['id', 'patient_name', 'doctor_id', 'appointment_date', 'appointment_time', 'status', 'diagnosis', 'prescription'] if c in df.columns]
+    cols_order = [c for c in ['id', 'patient_name', 'doctor_id', 'appointment_date', 'appointment_time', 'status', 'payment_method', 'payment_amount', 'diagnosis', 'prescription'] if c in df.columns]
     df = df[cols_order]
 
     st.dataframe(
@@ -246,6 +267,8 @@ def render_modern_table(records):
                 options=["Waiting", "Pending Payment", "Completed", "Cancelled"],
                 required=True
             ),
+            "payment_method": st.column_config.TextColumn("Payment Method"),
+            "payment_amount": st.column_config.TextColumn("Amount Paid"),
             "diagnosis": st.column_config.TextColumn("Diagnosis"),
             "prescription": st.column_config.TextColumn("Prescription")
         }
@@ -431,7 +454,7 @@ def main():
     # --- ADMIN PORTAL ---
     if role == "Admin":
         st.title("🛠️ Administrative Control Center (Cashier & Master Management)")
-        st.markdown("System-wide master monitoring dashboard, cashier payment verification, and scheduling management.")
+        st.markdown("System-wide master monitoring dashboard, cashier payment processing, and scheduling management.")
         
         records = db.get_all_appointments()
         pending_payment_count = len([r for r in records if r.get("status") == "Pending Payment"])
@@ -445,7 +468,7 @@ def main():
         
         admin_tab1, admin_tab2, admin_tab3, admin_tab4 = st.tabs([
             "📋 Master Appointment Table", 
-            "💵 Cashier & Schedule Editing", 
+            "💵 Cashier Checkout & Schedule", 
             "👥 Manage User Accounts",
             "➕ Add New Record"
         ])
@@ -455,19 +478,29 @@ def main():
             render_modern_table(records)
                 
         with admin_tab2:
-            st.subheader("💵 Cashier Payment Verification & Schedule Management")
-            st.markdown("Select a patient appointment to verify payment, mark as **Completed**, or update scheduling details.")
+            st.subheader("💵 Cashier Payment Verification & Checkout Desk")
+            st.markdown("Process patient consultation payments here. *Note: Payments are handled exclusively by the Admin/Cashier desk to keep doctors separate from financial transactions.*")
             
             if records:
                 sorted_records = sorted(records, key=lambda x: int(x['id']))
                 record_options = [f"ID #{r['id']} | Patient: {r['patient_name']} | Status: {r['status']} | Dr: {r['doctor_id']}" for r in sorted_records]
-                selected_rec_str = st.selectbox("Select Record for Cashier / Modification", record_options)
+                selected_rec_str = st.selectbox("Select Record for Cashier Checkout / Modification", record_options)
                 
                 selected_id = int(selected_rec_str.split("|")[0].replace("ID:", "").replace("ID", "").replace("#", "").strip())
                 current_rec = next((r for r in records if r['id'] == selected_id), None)
                 
                 if current_rec:
-                    with st.form("admin_edit_form"):
+                    with st.form("admin_cashier_form"):
+                        st.markdown(f"### 💳 Checkout for Patient: **{current_rec['patient_name']}** (ID #{current_rec['id']})")
+                        col_c1, col_c2 = st.columns(2)
+                        with col_c1:
+                            pay_method = st.selectbox("Payment Method", ["Cash", "GCash", "Credit/Debit Card", "Health Insurance / HMO"], index=0)
+                            pay_amount = st.text_input("Payment Amount (PHP)", value="500.00")
+                        with col_c2:
+                            edit_status_cashier = st.selectbox("Update Status", ["Pending Payment", "Completed", "Waiting", "Cancelled"], index=["Pending Payment", "Completed", "Waiting", "Cancelled"].index(current_rec['status']) if current_rec['status'] in ["Pending Payment", "Completed", "Waiting", "Cancelled"] else 1)
+                        
+                        st.markdown("---")
+                        st.markdown("### 📋 Schedule Details")
                         col_e1, col_e2 = st.columns(2)
                         with col_e1:
                             edit_acc = st.text_input("Account Username", value=current_rec.get('account_username') or current_rec['patient_name'])
@@ -476,24 +509,23 @@ def main():
                         with col_e2:
                             edit_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=current_rec['appointment_date'])
                             edit_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(current_rec['appointment_time']) if current_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
-                            edit_status = st.selectbox("Status", ["Waiting", "Pending Payment", "Completed", "Cancelled"], index=["Waiting", "Pending Payment", "Completed", "Cancelled"].index(current_rec['status']) if current_rec['status'] in ["Waiting", "Pending Payment", "Completed", "Cancelled"] else 0)
                         
                         st.markdown("---")
-                        st.markdown("###  Medical Records")
+                        st.markdown("### 🔒 Immutable Medical Records")
                         st.text_area("Diagnosis", value=current_rec.get('diagnosis') or "None recorded yet.", disabled=True)
                         st.text_area("Prescription", value=current_rec.get('prescription') or "None recorded yet.", disabled=True)
                         
                         col_btn1, col_btn2 = st.columns(2)
-                        update_btn = col_btn1.form_submit_button("💾 Save Schedule & Mark Paid", use_container_width=True)
+                        process_pay_btn = col_btn1.form_submit_button("💰 Process Payment & Complete", use_container_width=True)
                         delete_btn = col_btn2.form_submit_button("🗑️ Delete Record", use_container_width=True)
                         
-                        if update_btn:
-                            success, err = db.update_appointment_admin(selected_id, edit_acc, edit_patient, edit_doctor, edit_date, edit_time, edit_status)
+                        if process_pay_btn:
+                            success, err = db.process_cashier_payment(selected_id, pay_method, pay_amount, edit_acc, edit_patient, edit_doctor, edit_date, edit_time)
                             if success:
-                                st.success(f"Record #{selected_id} schedule updated successfully!")
+                                st.success(f"Payment of ₱{pay_amount} processed via {pay_method} for Record #{selected_id}! Status set to Completed.")
                                 st.rerun()
                             else:
-                                st.error(f"Error updating record: {err}")
+                                st.error(f"Error processing payment: {err}")
                                 
                         if delete_btn:
                             try:
@@ -704,11 +736,13 @@ def main():
                 selected_card_rec = next((r for r in patient_records if r['id'] == sel_presc_id), None)
                 
                 if selected_card_rec:
+                    pay_status_display = f"Paid via {selected_card_rec.get('payment_method')} (₱{selected_card_rec.get('payment_amount')})" if selected_card_rec.get('payment_method') else "Unpaid / Pending Payment"
                     st.markdown(f"""
                         <div class="prescription-card">
                             <h3>🏥 CarePoint Official Medical Prescription & Diagnosis</h3>
                             <p><b>Appointment ID:</b> #{selected_card_rec.get('id')} | <b>Patient:</b> {selected_card_rec.get('patient_name')} | <b>Attending Doctor:</b> {selected_card_rec.get('doctor_id')}</p>
                             <p><b>Appointment Date:</b> {selected_card_rec.get('appointment_date')} at {selected_card_rec.get('appointment_time')} | <b>Status:</b> {selected_card_rec.get('status')}</p>
+                            <p><b>Payment Status:</b> {pay_status_display}</p>
                             <hr style="margin: 15px 0;">
                             <h4>Medical Diagnosis</h4>
                             <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('diagnosis') or 'No diagnosis recorded yet.'}</p>
