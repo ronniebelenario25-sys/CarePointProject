@@ -105,8 +105,8 @@ class DatabaseManager:
         except Exception as e:
             return False, str(e)
 
-    def process_cashier_payment(self, record_id, payment_method, payment_amount, account_username, patient_name, doctor_id, appointment_date, appointment_time):
-        """Allows Admin/Cashier to process payment and automatically set status to Completed"""
+    def process_cashier_payment(self, record_id, payment_method, payment_amount, status, account_username, patient_name, doctor_id, appointment_date, appointment_time):
+        """Allows Admin/Cashier to process payment and update status using the selected dropdown option"""
         try:
             self.supabase.table("appointments").update({
                 "account_username": account_username,
@@ -114,7 +114,7 @@ class DatabaseManager:
                 "doctor_id": doctor_id,
                 "appointment_date": str(appointment_date),
                 "appointment_time": appointment_time,
-                "status": "Completed",
+                "status": status,
                 "payment_method": payment_method,
                 "payment_amount": str(payment_amount)
             }).eq("id", record_id).execute()
@@ -127,7 +127,7 @@ class DatabaseManager:
                     "doctor_id": doctor_id,
                     "appointment_date": str(appointment_date),
                     "appointment_time": appointment_time,
-                    "status": "Completed"
+                    "status": status
                 }).eq("id", record_id).execute()
                 return True, None
             except Exception as e2:
@@ -506,7 +506,9 @@ def main():
                             pay_method = st.selectbox("Payment Method", ["Cash", "GCash", "Credit/Debit Card", "Health Insurance / HMO"], index=0)
                             pay_amount = st.text_input("Payment Amount (PHP)", value="500.00")
                         with col_c2:
-                            st.info(f"Current Status: **{current_rec['status']}**\n*(Clicking process automatically updates status to **Completed**)*")
+                            status_options = ["Pending Payment", "Completed", "Waiting", "Cancelled"]
+                            default_status_index = status_options.index(current_rec['status']) if current_rec['status'] in status_options else 1
+                            edit_status_cashier = st.selectbox("Update Status", status_options, index=default_status_index)
                         
                         st.markdown("---")
                         st.markdown("### 📋 Schedule Details")
@@ -529,9 +531,9 @@ def main():
                         delete_btn = col_btn2.form_submit_button("🗑️ Delete Record", use_container_width=True)
                         
                         if process_pay_btn:
-                            success, err = db.process_cashier_payment(selected_id, pay_method, pay_amount, edit_acc, edit_patient, edit_doctor, edit_date, edit_time)
+                            success, err = db.process_cashier_payment(selected_id, pay_method, pay_amount, edit_status_cashier, edit_acc, edit_patient, edit_doctor, edit_date, edit_time)
                             if success:
-                                st.success(f"Payment of ₱{pay_amount} processed via {pay_method} for Record #{selected_id}! Status automatically updated to Completed.")
+                                st.success(f"Payment of ₱{pay_amount} processed via {pay_method} for Record #{selected_id}! Status updated to {edit_status_cashier}.")
                                 st.rerun()
                             else:
                                 st.error(f"Error processing payment: {err}")
