@@ -459,10 +459,12 @@ def main():
             st.markdown("Select a patient appointment to verify payment, mark as **Completed**, or update scheduling details. *(Note: Medical diagnoses and prescriptions are read-only to maintain accountability).*")
             
             if records:
-                record_options = [f"ID: {r['id']} | Patient: {r['patient_name']} | Status: {r['status']} | Dr: {r['doctor_id']}" for r in records]
+                # Sorted numerically by Appointment ID
+                sorted_records = sorted(records, key=lambda x: int(x['id']))
+                record_options = [f"ID #{r['id']} | Patient: {r['patient_name']} | Status: {r['status']} | Dr: {r['doctor_id']}" for r in sorted_records]
                 selected_rec_str = st.selectbox("Select Record for Cashier / Modification", record_options)
                 
-                selected_id = int(selected_rec_str.split("|")[0].replace("ID:", "").strip())
+                selected_id = int(selected_rec_str.split("|")[0].replace("ID:", "").replace("ID", "").replace("#", "").strip())
                 current_rec = next((r for r in records if r['id'] == selected_id), None)
                 
                 if current_rec:
@@ -595,10 +597,12 @@ def main():
             st.markdown("Select a patient from your queue to examine records, write diagnosis, and issue prescriptions. *Note: Saving moves the patient to the cashier payment queue.*")
             
             if doc_records:
-                patient_names_list = [f"{r['patient_name']} (ID: {r['id']} - {r['appointment_date']} {r['appointment_time']})" for r in doc_records]
+                # Sorted numerically by Appointment ID
+                sorted_doc_records = sorted(doc_records, key=lambda x: int(x['id']))
+                patient_names_list = [f"ID #{r['id']} | Patient: {r['patient_name']} ({r['appointment_date']} {r['appointment_time']})" for r in sorted_doc_records]
                 selected_patient_str = st.selectbox("Select Patient in Consultation", patient_names_list)
                 
-                chosen_record = next((r for r in doc_records if f"{r['patient_name']} (ID: {r['id']} - {r['appointment_date']} {r['appointment_time']})" == selected_patient_str), None)
+                chosen_record = next((r for r in sorted_doc_records if f"ID #{r['id']} | Patient: {r['patient_name']} ({r['appointment_date']} {r['appointment_time']})" == selected_patient_str), None)
                 
                 if chosen_record:
                     st.info(f"**Patient:** {chosen_record['patient_name']} | **Assigned Doctor:** {chosen_record['doctor_id']} | **Time Slot:** {chosen_record['appointment_date']} at {chosen_record['appointment_time']}")
@@ -694,17 +698,19 @@ def main():
             st.markdown("---")
             st.subheader("🩺 View Clinical Prescriptions & Diagnosis Cards")
             if patient_records:
-                presc_options = [f"ID: {r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']}" for r in patient_records]
+                # Sorted numerically by Appointment ID
+                sorted_presc_records = sorted(patient_records, key=lambda x: int(x['id']))
+                presc_options = [f"ID #{r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']}" for r in sorted_presc_records]
                 selected_presc_str = st.selectbox("Select Appointment to View Prescription", presc_options, key="patient_presc_view")
                 
-                sel_presc_id = int(selected_presc_str.split("|")[0].replace("ID:", "").strip())
+                sel_presc_id = int(selected_presc_str.split("|")[0].replace("ID:", "").replace("ID", "").replace("#", "").strip())
                 selected_card_rec = next((r for r in patient_records if r['id'] == sel_presc_id), None)
                 
                 if selected_card_rec:
                     st.markdown(f"""
                         <div class="prescription-card">
                             <h3>🏥 CarePoint Official Medical Prescription & Diagnosis</h3>
-                            <p><b>Patient:</b> {selected_card_rec.get('patient_name')} | <b>Attending Doctor:</b> {selected_card_rec.get('doctor_id')}</p>
+                            <p><b>Appointment ID:</b> #{selected_card_rec.get('id')} | <b>Patient:</b> {selected_card_rec.get('patient_name')} | <b>Attending Doctor:</b> {selected_card_rec.get('doctor_id')}</p>
                             <p><b>Appointment Date:</b> {selected_card_rec.get('appointment_date')} at {selected_card_rec.get('appointment_time')} | <b>Status:</b> {selected_card_rec.get('status')}</p>
                             <hr style="margin: 15px 0;">
                             <h4>Medical Diagnosis</h4>
@@ -718,10 +724,11 @@ def main():
             st.subheader(f"✏️ Reschedule, Cancel, or Delete Appointments")
             st.markdown("*Note: Medical prescriptions and diagnoses cannot be edited by patients to preserve medical integrity.*")
             if patient_records:
-                pat_options = [f"ID: {r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']} {r['appointment_time']} | Status: {r['status']}" for r in patient_records]
+                sorted_pat_records = sorted(patient_records, key=lambda x: int(x['id']))
+                pat_options = [f"ID #{r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']} {r['appointment_time']} | Status: {r['status']}" for r in sorted_pat_records]
                 selected_pat_rec_str = st.selectbox("Select Appointment to Modify", pat_options, key="pat_edit_select")
                 
-                sel_pat_id = int(selected_pat_rec_str.split("|")[0].replace("ID:", "").strip())
+                sel_pat_id = int(selected_pat_rec_str.split("|")[0].replace("ID:", "").replace("ID", "").replace("#", "").strip())
                 curr_pat_rec = next((r for r in patient_records if r['id'] == sel_pat_id), None)
                 
                 if curr_pat_rec:
