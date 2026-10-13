@@ -88,7 +88,7 @@ class DatabaseManager:
             conflict_check = self.supabase.table("appointments").select("*").eq("doctor_id", doctor_id).eq("appointment_date", str(appointment_date)).eq("appointment_time", appointment_time).execute()
             
             if conflict_check.data:
-                active_conflicts = [r for r in conflict_check.data if r.get("status") != "Cancelled"]
+                active_conflicts = [r for r in conflict_check.data if r.get("status"] != "Cancelled"]
                 if active_conflicts:
                     return False, f"⚠️ Time Conflict: {doctor_id} already has an appointment at {appointment_time} on {appointment_date}. Please choose another slot."
 
@@ -275,13 +275,21 @@ def main():
         st.error("⚠️ Please configure your Supabase credentials in Streamlit Cloud Secrets.")
         return
 
-    # --- PERSISTENT SESSION STATE INITIALIZATION ---
+    # --- SESSION STATE & URL QUERY PERSISTENCE INITIALIZATION ---
     if "authenticated" not in st.session_state:
-        st.session_state.authenticated = False
-        st.session_state.role = None
-        st.session_state.username = None
-        st.session_state.user_id = None
-        st.session_state.full_name = None
+        query_params = st.query_params
+        if "auth" in query_params and query_params["auth"] == "true":
+            st.session_state.authenticated = True
+            st.session_state.username = query_params.get("user", "admin")
+            st.session_state.role = query_params.get("role", "Admin")
+            st.session_state.user_id = query_params.get("uid", "1001")
+            st.session_state.full_name = query_params.get("name", st.session_state.username)
+        else:
+            st.session_state.authenticated = False
+            st.session_state.role = None
+            st.session_state.username = None
+            st.session_state.user_id = None
+            st.session_state.full_name = None
 
     # --- 1. LOGIN GATEWAY & REGISTRATION ---
     if not st.session_state.authenticated:
@@ -309,6 +317,16 @@ def main():
                             st.session_state.username = username
                             st.session_state.user_id = user_id
                             st.session_state.full_name = full_name
+                            
+                            # Save login state in URL parameters to survive browser reloads
+                            st.query_params.update({
+                                "auth": "true",
+                                "user": username,
+                                "role": role,
+                                "uid": str(user_id),
+                                "name": full_name
+                            })
+                            
                             st.success(f"Authenticated successfully as {role}!")
                             st.rerun()
                         else:
@@ -392,6 +410,7 @@ def main():
         st.session_state.username = None
         st.session_state.user_id = None
         st.session_state.full_name = None
+        st.query_params.clear() # Clear URL session params on logout
         st.rerun()
 
     # --- 3. ROLE-BASED DASHBOARDS ---
@@ -603,7 +622,7 @@ def main():
             st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
             st.markdown("Patients who have completed their consultation and are waiting to pay at the admin desk.")
             
-            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
+            pending_records = [r for r in doc_records if r.get("status"] == "Pending Payment"]
             if pending_records:
                 render_modern_table(pending_records)
             else:
