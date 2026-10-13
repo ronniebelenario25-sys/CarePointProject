@@ -88,7 +88,7 @@ class DatabaseManager:
             conflict_check = self.supabase.table("appointments").select("*").eq("doctor_id", doctor_id).eq("appointment_date", str(appointment_date)).eq("appointment_time", appointment_time).execute()
             
             if conflict_check.data:
-                active_conflicts = [r for r in conflict_check.data if r.get("status) != "Cancelled"]
+                active_conflicts = [r for r in conflict_check.data if r.get("status") != "Cancelled"]
                 if active_conflicts:
                     return False, f"⚠️ Time Conflict: {doctor_id} already has an appointment at {appointment_time} on {appointment_date}. Please choose another slot."
 
@@ -121,7 +121,6 @@ class DatabaseManager:
             return True, None
         except Exception as e:
             try:
-                # Fallback if payment columns don't exist yet in Supabase table
                 self.supabase.table("appointments").update({
                     "account_username": account_username,
                     "patient_name": patient_name,
@@ -467,7 +466,7 @@ def main():
         st.markdown("System-wide master monitoring dashboard, cashier payment processing, and scheduling management.")
         
         records = db.get_all_appointments()
-        pending_payment_count = len([r for r in records if r.get("status"] == "Pending Payment"])
+        pending_payment_count = len([r for r in records if r.get("status") == "Pending Payment"])
         
         m1, m2, m3 = st.columns(3)
         m1.metric(label="Total Database Records", value=len(records))
@@ -521,7 +520,7 @@ def main():
                             edit_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(current_rec['appointment_time']) if current_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
                         
                         st.markdown("---")
-                        st.markdown("### Medical Records")
+                        st.subheader("Medical Records")
                         st.text_area("Diagnosis", value=current_rec.get('diagnosis') or "None recorded yet.", disabled=True)
                         st.text_area("Prescription", value=current_rec.get('prescription') or "None recorded yet.", disabled=True)
                         
