@@ -88,7 +88,7 @@ class DatabaseManager:
             conflict_check = self.supabase.table("appointments").select("*").eq("doctor_id", doctor_id).eq("appointment_date", str(appointment_date)).eq("appointment_time", appointment_time).execute()
             
             if conflict_check.data:
-                active_conflicts = [r for r in conflict_check.data if r.get("status") != "Cancelled"]
+                active_conflicts = [r for r in conflict_check.data if r.get("status"] != "Cancelled"]
                 if active_conflicts:
                     return False, f"⚠️ Time Conflict: {doctor_id} already has an appointment at {appointment_time} on {appointment_date}. Please choose another slot."
 
@@ -192,9 +192,16 @@ class DatabaseManager:
         try:
             existing = self.get_all_appointments()
             doctors = [
-                "Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos", 
-                "Dr. Garcia", "Dr. Mendoza", "Dr. Torres", "Dr. Ramos", 
-                "Dr. Lim", "Dr. Villanueva"
+                "Dr. Smith (General Practitioner)", 
+                "Dr. Cruz (Neurologist)", 
+                "Dr. Reyes (Pediatrician)", 
+                "Dr. Santos (Cardiologist)", 
+                "Dr. Garcia (Dermatologist)", 
+                "Dr. Mendoza (Ophthalmologist)", 
+                "Dr. Torres (Orthopedic Surgeon)", 
+                "Dr. Ramos (ENT Specialist)", 
+                "Dr. Lim (Psychiatrist)", 
+                "Dr. Villanueva (Obstetrician-Gynecologist)"
             ]
             
             doctors_with_records = set(r.get("doctor_id") for r in existing)
@@ -424,9 +431,17 @@ def main():
     
     selected_doctor = "All Doctors"
     doctors_list = [
-        "All Doctors", "Dr. Smith", "Dr. Cruz", "Dr. Reyes", "Dr. Santos", 
-        "Dr. Garcia", "Dr. Mendoza", "Dr. Torres", "Dr. Ramos", 
-        "Dr. Lim", "Dr. Villanueva"
+        "All Doctors", 
+        "Dr. Smith (General Practitioner)", 
+        "Dr. Cruz (Neurologist)", 
+        "Dr. Reyes (Pediatrician)", 
+        "Dr. Santos (Cardiologist)", 
+        "Dr. Garcia (Dermatologist)", 
+        "Dr. Mendoza (Ophthalmologist)", 
+        "Dr. Torres (Orthopedic Surgeon)", 
+        "Dr. Ramos (ENT Specialist)", 
+        "Dr. Lim (Psychiatrist)", 
+        "Dr. Villanueva (Obstetrician-Gynecologist)"
     ]
     if role == "Doctor":
         st.sidebar.markdown("---")
@@ -699,7 +714,7 @@ def main():
             st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
             st.markdown("Patients who have completed their consultation and are waiting to pay at the admin desk.")
             
-            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
+            pending_records = [r for r in doc_records if r.get("status"] == "Pending Payment"]
             if pending_records:
                 render_modern_table(pending_records)
             else:
