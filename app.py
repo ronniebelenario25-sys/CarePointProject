@@ -45,7 +45,7 @@ class DatabaseManager:
             return False, str(e)
 
     def register_doctor(self, username, password, full_name, professional_role, prc_number, ptr_number):
-        """Registers a new doctor account safely using core schema columns"""
+        """Registers a new doctor account including professional role / specialty"""
         try:
             existing = self.supabase.table("users").select("username").eq("username", username).execute()
             if existing.data:
@@ -55,7 +55,8 @@ class DatabaseManager:
                 "username": username,
                 "password": password,
                 "role": "Doctor",
-                "full_name": full_name
+                "full_name": full_name,
+                "professional_role": professional_role
             }
             self.supabase.table("users").insert(user_data).execute()
             return True, None
@@ -323,16 +324,16 @@ def render_modern_table(records):
         }
     )
 
-def render_users_table(users):
-    """Renders user accounts table"""
+def render_doctors_table(users):
+    """Renders doctor accounts table including professional role / specialty"""
     if not users:
-        st.warning("No user accounts found matching query.")
+        st.warning("No doctor accounts found.")
         return
 
     import pandas as pd
     df = pd.DataFrame(users)
     
-    cols = [c for c in ['id', 'username', 'password', 'role', 'full_name', 'professional_role', 'prc_number', 'ptr_number'] if c in df.columns]
+    cols = [c for c in ['id', 'username', 'password', 'role', 'full_name', 'professional_role'] if c in df.columns]
     df = df[cols]
     
     st.dataframe(
@@ -345,9 +346,32 @@ def render_users_table(users):
             "password": st.column_config.TextColumn("Password"),
             "role": st.column_config.TextColumn("Role"),
             "full_name": st.column_config.TextColumn("Full Name"),
-            "professional_role": st.column_config.TextColumn("Specialty / Role"),
-            "prc_number": st.column_config.TextColumn("PRC No."),
-            "ptr_number": st.column_config.TextColumn("PTR No.")
+            "professional_role": st.column_config.TextColumn("Professional Role / Specialty")
+        }
+    )
+
+def render_users_table(users):
+    """Renders user accounts table"""
+    if not users:
+        st.warning("No user accounts found matching query.")
+        return
+
+    import pandas as pd
+    df = pd.DataFrame(users)
+    
+    cols = [c for c in ['id', 'username', 'password', 'role', 'full_name'] if c in df.columns]
+    df = df[cols]
+    
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "id": st.column_config.NumberColumn("User ID", format="%d"),
+            "username": st.column_config.TextColumn("Username"),
+            "password": st.column_config.TextColumn("Password"),
+            "role": st.column_config.TextColumn("Role"),
+            "full_name": st.column_config.TextColumn("Full Name")
         }
     )
 
@@ -632,7 +656,7 @@ def main():
                 
             with acc_tab2:
                 st.markdown(f"### 🩺 Registered Doctors ({len(doctors)})")
-                render_users_table(doctors)
+                render_doctors_table(doctors)
             
             st.markdown("---")
             st.subheader("🗑️ Delete User Account")
@@ -676,7 +700,7 @@ def main():
                 doc_reg_submit = st.form_submit_button(button_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
                 
                 if doc_reg_submit and not st.session_state.is_submitting_action:
-                    if doc_username.strip() and doc_password.strip() and doc_fullname.strip():
+                    if doc_username.strip() and doc_password.strip() and doc_fullname.strip() and doc_specialty.strip():
                         st.session_state.is_submitting_action = True
                         with st.spinner("⏳ Creating doctor account..."):
                             success, err = db.register_doctor(
@@ -689,12 +713,12 @@ def main():
                             )
                             st.session_state.is_submitting_action = False
                             if success:
-                                st.success(f"🎉 Doctor account '{doc_fullname}' created successfully!")
+                                st.success(f"🎉 Doctor account '{doc_fullname}' ({doc_specialty}) created successfully!")
                                 st.rerun()
                             else:
                                 st.error(err)
                     else:
-                        st.error("Please fill in username, password, and full name.")
+                        st.error("Please fill in username, password, full name, and professional specialty.")
 
         with admin_tab5:
             st.subheader("👤 Create a New Patient User Account")
