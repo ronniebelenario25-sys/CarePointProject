@@ -382,6 +382,10 @@ def main():
             st.session_state.user_id = None
             st.session_state.full_name = None
 
+    # Global submission locks to prevent rapid double-tapping across all forms
+    if "is_submitting_action" not in st.session_state:
+        st.session_state.is_submitting_action = False
+
     # --- 1. LOGIN GATEWAY & REGISTRATION ---
     if not st.session_state.authenticated:
         st.markdown("<h1 style='text-align: center; color: #000000;'>💊 CarePoint Clinic Management System</h1>", unsafe_allow_html=True)
@@ -398,29 +402,34 @@ def main():
                     st.subheader("Account Login")
                     username = st.text_input("Username", value="admin")
                     password = st.text_input("Password", type="password", value="password123")
-                    submit = st.form_submit_button("Access Portal", use_container_width=True)
                     
-                    if submit:
-                        role, user_id, full_name = db.authenticate(username, password)
-                        if role:
-                            st.session_state.authenticated = True
-                            st.session_state.role = role
-                            st.session_state.username = username
-                            st.session_state.user_id = user_id
-                            st.session_state.full_name = full_name
-                            
-                            st.query_params.update({
-                                "auth": "true",
-                                "user": username,
-                                "role": role,
-                                "uid": str(user_id),
-                                "name": full_name
-                            })
-                            
-                            st.success(f"Authenticated successfully as {role}!")
-                            st.rerun()
-                        else:
-                            st.error("Invalid username or password. Please try again.")
+                    login_btn_label = "Logging in..." if st.session_state.is_submitting_action else "Access Portal"
+                    submit = st.form_submit_button(login_btn_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                    
+                    if submit and not st.session_state.is_submitting_action:
+                        st.session_state.is_submitting_action = True
+                        with st.spinner("⏳ Authenticating credentials..."):
+                            role, user_id, full_name = db.authenticate(username, password)
+                            st.session_state.is_submitting_action = False
+                            if role:
+                                st.session_state.authenticated = True
+                                st.session_state.role = role
+                                st.session_state.username = username
+                                st.session_state.user_id = user_id
+                                st.session_state.full_name = full_name
+                                
+                                st.query_params.update({
+                                    "auth": "true",
+                                    "user": username,
+                                    "role": role,
+                                    "uid": str(user_id),
+                                    "name": full_name
+                                })
+                                
+                                st.success(f"Authenticated successfully as {role}!")
+                                st.rerun()
+                            else:
+                                st.error("Invalid username or password. Please try again.")
                             
             with auth_tab2:
                 st.subheader("New Patient Registration")
@@ -430,15 +439,20 @@ def main():
                     new_user = st.text_input("Choose Unique Login Username (e.g., patient_user)")
                     new_pass = st.text_input("Choose Password", type="password")
                     new_fullname = st.text_input("Patient Full Name (e.g., John Doe)")
-                    reg_submit = st.form_submit_button("Register Account", use_container_width=True)
                     
-                    if reg_submit:
+                    reg_btn_label = "Registering..." if st.session_state.is_submitting_action else "Register Account"
+                    reg_submit = st.form_submit_button(reg_btn_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                    
+                    if reg_submit and not st.session_state.is_submitting_action:
                         if new_user.strip() and new_pass.strip() and new_fullname.strip():
-                            success, err = db.register_patient(new_user.strip(), new_pass.strip(), new_fullname.strip())
-                            if success:
-                                st.success(f"🎉 Patient account '{new_user}' created successfully for {new_fullname}! You can now log in.")
-                            else:
-                                st.error(err)
+                            st.session_state.is_submitting_action = True
+                            with st.spinner("⏳ Creating patient account..."):
+                                success, err = db.register_patient(new_user.strip(), new_pass.strip(), new_fullname.strip())
+                                st.session_state.is_submitting_action = False
+                                if success:
+                                    st.success(f"🎉 Patient account '{new_user}' created successfully for {new_fullname}! You can now log in.")
+                                else:
+                                    st.error(err)
                         else:
                             st.error("Please fill in all fields.")
         return
@@ -453,7 +467,6 @@ def main():
     
     users_list = db.get_all_users()
     
-    # Build dynamic doctors list including both preset doctors and newly registered doctors from Supabase
     base_doctors = [
         "Dr. Smith (General Practitioner)", 
         "Dr. Cruz (Neurologist)", 
@@ -473,7 +486,6 @@ def main():
         if str(u.get('role')).lower() == 'doctor' and u.get('full_name')
     ]
     
-    # Combine unique doctors
     combined_doctors = base_doctors + [d for d in registered_docs if d not in base_doctors]
     doctors_list = ["All Doctors"] + combined_doctors
 
@@ -594,24 +606,34 @@ def main():
                         st.text_area("Prescription", value=current_rec.get('prescription') or "None recorded yet.", disabled=True)
                         
                         col_btn1, col_btn2 = st.columns(2)
-                        process_pay_btn = col_btn1.form_submit_button("💰 Process Payment & Complete", use_container_width=True)
-                        delete_btn = col_btn2.form_submit_button("🗑️ Delete Record", use_container_width=True)
+                        pay_lbl = "Processing..." if st.session_state.is_submitting_action else "💰 Process Payment & Complete"
+                        del_lbl = "Deleting..." if st.session_state.is_submitting_action else "🗑️ Delete Record"
                         
-                        if process_pay_btn:
-                            success, err = db.process_cashier_payment(selected_id, pay_method, pay_amount, edit_status_cashier, edit_acc, edit_patient, edit_doctor, edit_date, edit_time)
-                            if success:
-                                st.success(f"Payment of ₱{pay_amount} processed via {pay_method} for Record #{selected_id}! Status updated to {edit_status_cashier}.")
-                                st.rerun()
-                            else:
-                                st.error(f"Error processing payment: {err}")
-                                
-                        if delete_btn:
-                            try:
-                                db.supabase.table("appointments").delete().eq("id", selected_id).execute()
-                                st.success(f"Record #{selected_id} deleted successfully!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error deleting record: {e}")
+                        process_pay_btn = col_btn1.form_submit_button(pay_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                        delete_btn = col_btn2.form_submit_button(del_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                        
+                        if process_pay_btn and not st.session_state.is_submitting_action:
+                            st.session_state.is_submitting_action = True
+                            with st.spinner("⏳ Processing payment..."):
+                                success, err = db.process_cashier_payment(selected_id, pay_method, pay_amount, edit_status_cashier, edit_acc, edit_patient, edit_doctor, edit_date, edit_time)
+                                st.session_state.is_submitting_action = False
+                                if success:
+                                    st.success(f"Payment of ₱{pay_amount} processed via {pay_method} for Record #{selected_id}! Status updated to {edit_status_cashier}.")
+                                    st.rerun()
+                                else:
+                                    st.error(f"Error processing payment: {err}")
+                                    
+                        if delete_btn and not st.session_state.is_submitting_action:
+                            st.session_state.is_submitting_action = True
+                            with st.spinner("⏳ Deleting record..."):
+                                try:
+                                    db.supabase.table("appointments").delete().eq("id", selected_id).execute()
+                                    st.session_state.is_submitting_action = False
+                                    st.success(f"Record #{selected_id} deleted successfully!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.session_state.is_submitting_action = False
+                                    st.error(f"Error deleting record: {e}")
             else:
                 st.warning("No records available to edit.")
 
@@ -652,13 +674,17 @@ def main():
                 sel_user_id = int(selected_user_str.split("|")[0].replace("ID:", "").strip())
                 sel_username = selected_user_str.split("|")[1].replace("Username:", "").strip()
                 
-                if st.button("🗑️ Permanently Delete User Account", use_container_width=True):
-                    success, err = db.delete_user_completely(sel_user_id, sel_username)
-                    if success:
-                        st.success(f"User account '{sel_username}' (ID: #{sel_user_id}) and their associated appointments permanently deleted from Supabase!")
-                        st.rerun()
-                    else:
-                        st.error(f"Error deleting user account: {err}")
+                del_acc_lbl = "Deleting User..." if st.session_state.is_submitting_action else "🗑️ Permanently Delete User Account"
+                if st.button(del_acc_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action):
+                    st.session_state.is_submitting_action = True
+                    with st.spinner("⏳ Permanently deleting user and associated appointments..."):
+                        success, err = db.delete_user_completely(sel_user_id, sel_username)
+                        st.session_state.is_submitting_action = False
+                        if success:
+                            st.success(f"User account '{sel_username}' (ID: #{sel_user_id}) and their associated appointments permanently deleted from Supabase!")
+                            st.rerun()
+                        else:
+                            st.error(f"Error deleting user account: {err}")
             else:
                 st.info("No matching user accounts found.")
 
@@ -677,23 +703,27 @@ def main():
                     doc_prc = st.text_input("PRC License Number (e.g., 0012345)")
                     doc_ptr = st.text_input("PTR Number (e.g., 9876543)")
                 
-                doc_reg_submit = st.form_submit_button("🩺 Register Doctor Account", use_container_width=True)
+                button_label = "Registering Doctor..." if st.session_state.is_submitting_action else "🩺 Register Doctor Account"
+                doc_reg_submit = st.form_submit_button(button_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
                 
-                if doc_reg_submit:
+                if doc_reg_submit and not st.session_state.is_submitting_action:
                     if doc_username.strip() and doc_password.strip() and doc_fullname.strip() and doc_specialty.strip() and doc_prc.strip() and doc_ptr.strip():
-                        success, err = db.register_doctor(
-                            doc_username.strip(), 
-                            doc_password.strip(), 
-                            doc_fullname.strip(), 
-                            doc_specialty.strip(), 
-                            doc_prc.strip(), 
-                            doc_ptr.strip()
-                        )
-                        if success:
-                            st.success(f"🎉 Doctor account '{doc_fullname}' ({doc_specialty}) created successfully with PRC #{doc_prc} and PTR #{doc_ptr}!")
-                            st.rerun()
-                        else:
-                            st.error(err)
+                        st.session_state.is_submitting_action = True
+                        with st.spinner("⏳ Creating doctor account and securing credentials..."):
+                            success, err = db.register_doctor(
+                                doc_username.strip(), 
+                                doc_password.strip(), 
+                                doc_fullname.strip(), 
+                                doc_specialty.strip(), 
+                                doc_prc.strip(), 
+                                doc_ptr.strip()
+                            )
+                            st.session_state.is_submitting_action = False
+                            if success:
+                                st.success(f"🎉 Doctor account '{doc_fullname}' ({doc_specialty}) created successfully with PRC #{doc_prc} and PTR #{doc_ptr}!")
+                                st.rerun()
+                            else:
+                                st.error(err)
                     else:
                         st.error("Please fill in all required doctor credential fields.")
 
@@ -710,16 +740,20 @@ def main():
                     new_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], key="add_time")
                     new_status = st.selectbox("Initial Status", ["Waiting", "Pending Payment", "Completed", "Cancelled"], key="add_status")
                 
-                add_submit = st.form_submit_button("➕ Insert New Record", use_container_width=True)
+                add_lbl = "Inserting Record..." if st.session_state.is_submitting_action else "➕ Insert New Record"
+                add_submit = st.form_submit_button(add_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
                 
-                if add_submit:
+                if add_submit and not st.session_state.is_submitting_action:
                     if new_patient.strip():
-                        success, err = db.add_appointment(new_acc.strip(), new_patient.strip(), new_doctor, str(new_date), new_time, new_status)
-                        if success:
-                            st.success(f"Successfully added record for {new_patient}!")
-                            st.rerun()
-                        else:
-                            st.error(f"Failed to add record: {err}")
+                        st.session_state.is_submitting_action = True
+                        with st.spinner("⏳ Inserting appointment record..."):
+                            success, err = db.add_appointment(new_acc.strip(), new_patient.strip(), new_doctor, str(new_date), new_time, new_status)
+                            st.session_state.is_submitting_action = False
+                            if success:
+                                st.success(f"Successfully added record for {new_patient}!")
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to add record: {err}")
                     else:
                         st.error("Please enter a valid patient name.")
 
@@ -760,15 +794,19 @@ def main():
                         diagnosis = st.text_area("Medical Diagnosis", value=existing_diag, placeholder="Enter official diagnosis...")
                         prescription = st.text_area("Prescription & Treatment Plan", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
                         
-                        save_consultation = st.form_submit_button("💾 Save Consultation & Send to Cashier", use_container_width=True)
+                        cons_lbl = "Saving Consultation..." if st.session_state.is_submitting_action else "💾 Save Consultation & Send to Cashier"
+                        save_consultation = st.form_submit_button(cons_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
                         
-                        if save_consultation:
-                            success, err = db.update_consultation(chosen_record["id"], diagnosis, prescription, chosen_record["appointment_date"])
-                            if success:
-                                st.success(f"🎉 Consultation saved for {chosen_record['patient_name']}! Permanent tracking ID generated and patient sent to cashier.")
-                                st.rerun()
-                            else:
-                                st.error(f"Failed to save: {err}")
+                        if save_consultation and not st.session_state.is_submitting_action:
+                            st.session_state.is_submitting_action = True
+                            with st.spinner("⏳ Saving clinical diagnosis and generating prescription tracking ID..."):
+                                success, err = db.update_consultation(chosen_record["id"], diagnosis, prescription, chosen_record["appointment_date"])
+                                st.session_state.is_submitting_action = False
+                                if success:
+                                    st.success(f"🎉 Consultation saved for {chosen_record['patient_name']}! Permanent tracking ID generated and patient sent to cashier.")
+                                    st.rerun()
+                                else:
+                                    st.error(f"Failed to save: {err}")
             else:
                 st.warning("No patients available in your queue for consultation.")
 
@@ -821,16 +859,20 @@ def main():
                     app_date = st.date_input("Preferred Date")
                     app_time = st.selectbox("Exact Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"])
                 
-                book_submit = st.form_submit_button("Confirm & Secure Booking", use_container_width=True)
+                book_lbl = "Booking Appointment..." if st.session_state.is_submitting_action else "Confirm & Secure Booking"
+                book_submit = st.form_submit_button(book_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
                 
-                if book_submit:
+                if book_submit and not st.session_state.is_submitting_action:
                     if p_name.strip():
-                        success, err_msg = db.add_appointment(filter_username, p_name.strip(), doc_choice, app_date, app_time, "Waiting")
-                        if success:
-                            st.success(f"🎉 Appointment successfully booked for {p_name.strip()} with {doc_choice}!")
-                            st.rerun()
-                        else:
-                            st.error(err_msg)
+                        st.session_state.is_submitting_action = True
+                        with st.spinner("⏳ Securing booking and checking schedule conflicts..."):
+                            success, err_msg = db.add_appointment(filter_username, p_name.strip(), doc_choice, app_date, app_time, "Waiting")
+                            st.session_state.is_submitting_action = False
+                            if success:
+                                st.success(f"🎉 Appointment successfully booked for {p_name.strip()} with {doc_choice}!")
+                                st.rerun()
+                            else:
+                                st.error(err_msg)
                     else:
                         st.error("Please enter a valid patient name.")
                         
@@ -893,33 +935,47 @@ def main():
                             edit_p_status = st.selectbox("Status", ["Waiting", "Cancelled"], index=["Waiting", "Cancelled"].index(curr_pat_rec['status']) if curr_pat_rec['status'] in ["Waiting", "Cancelled"] else 0)
                         
                         col_pb1, col_pb2, col_pb3 = st.columns(3)
-                        save_p_edit = col_pb1.form_submit_button("💾 Save", use_container_width=True)
-                        cancel_p_booking = col_pb2.form_submit_button("❌ Cancel", use_container_width=True)
-                        delete_p_booking = col_pb3.form_submit_button("🗑️ Delete", use_container_width=True)
+                        save_lbl = "Saving..." if st.session_state.is_submitting_action else "💾 Save"
+                        canc_lbl = "Cancelling..." if st.session_state.is_submitting_action else "❌ Cancel"
+                        del_lbl = "Deleting..." if st.session_state.is_submitting_action else "🗑️ Delete"
                         
-                        if save_p_edit:
-                            success, err = db.update_appointment_patient(sel_pat_id, filter_username, edit_p_name, edit_p_doc, edit_p_date, edit_p_time, edit_p_status)
-                            if success:
-                                st.success(f"Appointment #{sel_pat_id} updated successfully!")
-                                st.rerun()
-                            else:
-                                st.error(f"Error: {err}")
-                                
-                        if cancel_p_booking:
-                            success, err = db.update_appointment_patient(sel_pat_id, filter_username, edit_p_name, curr_pat_rec['doctor_id'], curr_pat_rec['appointment_date'], curr_pat_rec['appointment_time'], "Cancelled")
-                            if success:
-                                st.warning(f"Appointment #{sel_pat_id} has been cancelled.")
-                                st.rerun()
-                            else:
-                                st.error(f"Error: {err}")
+                        save_p_edit = col_pb1.form_submit_button(save_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                        cancel_p_booking = col_pb2.form_submit_button(canc_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                        delete_p_booking = col_pb3.form_submit_button(del_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                        
+                        if save_p_edit and not st.session_state.is_submitting_action:
+                            st.session_state.is_submitting_action = True
+                            with st.spinner("⏳ Updating appointment..."):
+                                success, err = db.update_appointment_patient(sel_pat_id, filter_username, edit_p_name, edit_p_doc, edit_p_date, edit_p_time, edit_p_status)
+                                st.session_state.is_submitting_action = False
+                                if success:
+                                    st.success(f"Appointment #{sel_pat_id} updated successfully!")
+                                    st.rerun()
+                                else:
+                                    st.error(f"Error: {err}")
+                                    
+                        if cancel_p_booking and not st.session_state.is_submitting_action:
+                            st.session_state.is_submitting_action = True
+                            with st.spinner("⏳ Cancelling appointment..."):
+                                success, err = db.update_appointment_patient(sel_pat_id, filter_username, edit_p_name, curr_pat_rec['doctor_id'], curr_pat_rec['appointment_date'], curr_pat_rec['appointment_time'], "Cancelled")
+                                st.session_state.is_submitting_action = False
+                                if success:
+                                    st.warning(f"Appointment #{sel_pat_id} has been cancelled.")
+                                    st.rerun()
+                                else:
+                                    st.error(f"Error: {err}")
 
-                        if delete_p_booking:
-                            try:
-                                db.supabase.table("appointments").delete().eq("id", sel_pat_id).execute()
-                                st.success(f"Appointment #{sel_pat_id} permanently deleted!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error deleting record: {e}")
+                        if delete_p_booking and not st.session_state.is_submitting_action:
+                            st.session_state.is_submitting_action = True
+                            with st.spinner("⏳ Deleting appointment..."):
+                                try:
+                                    db.supabase.table("appointments").delete().eq("id", sel_pat_id).execute()
+                                    st.session_state.is_submitting_action = False
+                                    st.success(f"Appointment #{sel_pat_id} permanently deleted!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.session_state.is_submitting_action = False
+                                    st.error(f"Error deleting record: {e}")
             else:
                 st.info(f"No appointments found under your account.")
 
