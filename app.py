@@ -42,8 +42,27 @@ class DatabaseManager:
             self.supabase.table("users").insert(user_data).execute()
             return True, None
         except Exception as e:
-            if "full_name" in str(e):
-                return False, "Database error: Please add a 'full_name' text column to your Supabase 'users' table."
+            return False, str(e)
+
+    def register_doctor(self, username, password, full_name, professional_role, prc_number, ptr_number):
+        """Registers a new doctor account with PRC and PTR credentials"""
+        try:
+            existing = self.supabase.table("users").select("username").eq("username", username).execute()
+            if existing.data:
+                return False, "Username already exists. Please choose another."
+            
+            user_data = {
+                "username": username,
+                "password": password,
+                "role": "Doctor",
+                "full_name": full_name,
+                "professional_role": professional_role,
+                "prc_number": prc_number,
+                "ptr_number": ptr_number
+            }
+            self.supabase.table("users").insert(user_data).execute()
+            return True, None
+        except Exception as e:
             return False, str(e)
 
     def delete_user_completely(self, user_id, username):
@@ -316,7 +335,7 @@ def render_users_table(users):
     import pandas as pd
     df = pd.DataFrame(users)
     
-    cols = [c for c in ['id', 'username', 'password', 'role', 'full_name'] if c in df.columns]
+    cols = [c for c in ['id', 'username', 'password', 'role', 'full_name', 'professional_role', 'prc_number', 'ptr_number'] if c in df.columns]
     df = df[cols]
     
     st.dataframe(
@@ -328,7 +347,10 @@ def render_users_table(users):
             "username": st.column_config.TextColumn("Username"),
             "password": st.column_config.TextColumn("Password"),
             "role": st.column_config.TextColumn("Role"),
-            "full_name": st.column_config.TextColumn("Full Name")
+            "full_name": st.column_config.TextColumn("Full Name"),
+            "professional_role": st.column_config.TextColumn("Specialty / Role"),
+            "prc_number": st.column_config.TextColumn("PRC No."),
+            "ptr_number": st.column_config.TextColumn("PTR No.")
         }
     )
 
@@ -429,9 +451,10 @@ def main():
     display_role_label = "Master Patient" if st.session_state.username == "patient" else role
     st.sidebar.markdown(f"**Access Role:** `{display_role_label}`")
     
-    selected_doctor = "All Doctors"
-    doctors_list = [
-        "All Doctors", 
+    users_list = db.get_all_users()
+    
+    # Build dynamic doctors list including both preset doctors and newly registered doctors from Supabase
+    base_doctors = [
         "Dr. Smith (General Practitioner)", 
         "Dr. Cruz (Neurologist)", 
         "Dr. Reyes (Pediatrician)", 
@@ -443,12 +466,23 @@ def main():
         "Dr. Lim (Psychiatrist)", 
         "Dr. Villanueva (Obstetrician-Gynecologist)"
     ]
+    
+    registered_docs = [
+        f"{u.get('full_name')} ({u.get('professional_role')})" 
+        for u in users_list 
+        if str(u.get('role')).lower() == 'doctor' and u.get('full_name')
+    ]
+    
+    # Combine unique doctors
+    combined_doctors = base_doctors + [d for d in registered_docs if d not in base_doctors]
+    doctors_list = ["All Doctors"] + combined_doctors
+
+    selected_doctor = "All Doctors"
     if role == "Doctor":
         st.sidebar.markdown("---")
         selected_doctor = st.sidebar.selectbox("🩺 Filter by Doctor Name", doctors_list)
 
     all_records = db.get_all_appointments()
-    users_list = db.get_all_users()
     
     patient_options_map = {}
     for u in users_list:
@@ -507,10 +541,11 @@ def main():
         
         st.markdown("---")
         
-        admin_tab1, admin_tab2, admin_tab3, admin_tab4 = st.tabs([
+        admin_tab1, admin_tab2, admin_tab3, admin_tab4, admin_tab5 = st.tabs([
             "📋 Master Appointment Table", 
             "💵 Cashier Checkout & Schedule", 
             "👥 Manage User Accounts",
+            "🩺 Create Doctor Account",
             "➕ Add New Record"
         ])
         
@@ -628,6 +663,41 @@ def main():
                 st.info("No matching user accounts found.")
 
         with admin_tab4:
+            st.subheader("🩺 Create a New Doctor Account")
+            st.markdown("Add a licensed medical doctor including their professional specialty, PRC license number, and PTR number.")
+            
+            with st.form("create_doctor_form"):
+                col_d1, col_d2 = st.columns(2)
+                with col_d1:
+                    doc_username = st.text_input("Doctor Login Username (e.g., dr_smith)")
+                    doc_password = st.text_input("Doctor Password", type="password")
+                    doc_fullname = st.text_input("Doctor Full Name (e.g., Dr. John Smith)")
+                with col_d2:
+                    doc_specialty = st.text_input("Professional Role / Specialty (e.g., Cardiologist)")
+                    doc_prc = st.text_input("PRC License Number (e.g., 0012345)")
+                    doc_ptr = st.text_input("PTR Number (e.g., 9876543)")
+                
+                doc_reg_submit = st.form_submit_button("🩺 Register Doctor Account", use_container_width=True)
+                
+                if doc_reg_submit:
+                    if doc_username.strip() and doc_password.strip() and doc_fullname.strip() and doc_specialty.strip() and doc_prc.strip() and doc_ptr.strip():
+                        success, err = db.register_doctor(
+                            doc_username.strip(), 
+                            doc_password.strip(), 
+                            doc_fullname.strip(), 
+                            doc_specialty.strip(), 
+                            doc_prc.strip(), 
+                            doc_ptr.strip()
+                        )
+                        if success:
+                            st.success(f"🎉 Doctor account '{doc_fullname}' ({doc_specialty}) created successfully with PRC #{doc_prc} and PTR #{doc_ptr}!")
+                            st.rerun()
+                        else:
+                            st.error(err)
+                    else:
+                        st.error("Please fill in all required doctor credential fields.")
+
+        with admin_tab5:
             st.subheader("➕ Add a New Master Appointment Record")
             with st.form("admin_add_form"):
                 col_a1, col_a2 = st.columns(2)
@@ -657,7 +727,6 @@ def main():
     elif role == "Doctor":
         st.title("🩺 Medical Professional / Doctor Portal")
         
-        # Determine Doctor Surname / Display Name for welcome header
         doc_surname = selected_doctor if selected_doctor != "All Doctors" else "Doctor Smith"
         st.markdown(f"Welcome, **{doc_surname}**. Managing clinical treatments and patient queue.")
         
