@@ -704,9 +704,9 @@ def main():
             st.markdown("Register a new patient account with a unique username handle and separate patient full name.")
             
             with st.form("admin_create_patient_form"):
-                new_user = st.text_input("Choose Unique Login Username (e.g., patient_user)")
+                new_user = st.text_input("Choose Unique Login Username")
                 new_pass = st.text_input("Choose Password", type="password")
-                new_fullname = st.text_input("Patient Full Name (e.g., John Doe)")
+                new_fullname = st.text_input("Patient Full Name")
                 
                 reg_btn_label = "Creating Account..." if st.session_state.is_submitting_action else "👤 Create Patient Account"
                 reg_submit = st.form_submit_button(reg_btn_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
@@ -732,8 +732,8 @@ def main():
             with st.form("admin_walkin_booking_form"):
                 col_w1, col_w2 = st.columns(2)
                 with col_w1:
-                    walkin_username = st.text_input("Account Username Handle", value="walkin_patient")
-                    walkin_patient_name = st.text_input("Patient Full Name (e.g., Lolo Juan Santos)")
+                    walkin_username = st.text_input("Account Username Handle")
+                    walkin_patient_name = st.text_input("Patient Full Name")
                     walkin_doctor = st.selectbox("Assign Attending Physician", doctors_list[1:], key="walkin_doc")
                 with col_w2:
                     walkin_date = st.date_input("Preferred Date", key="walkin_date")
