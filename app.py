@@ -382,79 +382,50 @@ def main():
             st.session_state.user_id = None
             st.session_state.full_name = None
 
-    # Global submission locks to prevent rapid double-tapping across all forms
     if "is_submitting_action" not in st.session_state:
         st.session_state.is_submitting_action = False
 
-    # --- 1. LOGIN GATEWAY & REGISTRATION ---
+    # --- 1. LOGIN GATEWAY ---
     if not st.session_state.authenticated:
         st.markdown("<h1 style='text-align: center; color: #000000;'>💊 CarePoint Clinic Management System</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #000000; font-weight: 600;'>Secure Cloud-Powered Healthcare & Queue Portal</p>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns([1, 1.2, 1])
         with col2:
-            auth_tab1, auth_tab2 = st.tabs(["🔐 Login", "📝 Create Patient Account"])
+            st.info("💡 **Presentation Login Hints:**\n- Admin: `admin` / `password123`\n- Doctor: `doctor` / `password123`\n- Patient: `patient` / `password123`")
             
-            with auth_tab1:
-                st.info("💡 **Presentation Login Hints:**\n- Admin: `admin` / `password123`\n- Doctor: `doctor` / `password123`\n- Patient: `patient` / `password123`")
+            with st.form("login_form"):
+                st.subheader("Account Login")
+                username = st.text_input("Username", value="admin")
+                password = st.text_input("Password", type="password", value="password123")
                 
-                with st.form("login_form"):
-                    st.subheader("Account Login")
-                    username = st.text_input("Username", value="admin")
-                    password = st.text_input("Password", type="password", value="password123")
-                    
-                    login_btn_label = "Logging in..." if st.session_state.is_submitting_action else "Access Portal"
-                    submit = st.form_submit_button(login_btn_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
-                    
-                    if submit and not st.session_state.is_submitting_action:
-                        st.session_state.is_submitting_action = True
-                        with st.spinner("⏳ Authenticating credentials..."):
-                            role, user_id, full_name = db.authenticate(username, password)
-                            st.session_state.is_submitting_action = False
-                            if role:
-                                st.session_state.authenticated = True
-                                st.session_state.role = role
-                                st.session_state.username = username
-                                st.session_state.user_id = user_id
-                                st.session_state.full_name = full_name
-                                
-                                st.query_params.update({
-                                    "auth": "true",
-                                    "user": username,
-                                    "role": role,
-                                    "uid": str(user_id),
-                                    "name": full_name
-                                })
-                                
-                                st.success(f"Authenticated successfully as {role}!")
-                                st.rerun()
-                            else:
-                                st.error("Invalid username or password. Please try again.")
+                login_btn_label = "Logging in..." if st.session_state.is_submitting_action else "Access Portal"
+                submit = st.form_submit_button(login_btn_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                
+                if submit and not st.session_state.is_submitting_action:
+                    st.session_state.is_submitting_action = True
+                    with st.spinner("⏳ Authenticating credentials..."):
+                        role, user_id, full_name = db.authenticate(username, password)
+                        st.session_state.is_submitting_action = False
+                        if role:
+                            st.session_state.authenticated = True
+                            st.session_state.role = role
+                            st.session_state.username = username
+                            st.session_state.user_id = user_id
+                            st.session_state.full_name = full_name
                             
-            with auth_tab2:
-                st.subheader("New Patient Registration")
-                st.markdown("Create an account with a unique username and separate patient full name.")
-                
-                with st.form("register_form"):
-                    new_user = st.text_input("Choose Unique Login Username (e.g., patient_user)")
-                    new_pass = st.text_input("Choose Password", type="password")
-                    new_fullname = st.text_input("Patient Full Name (e.g., John Doe)")
-                    
-                    reg_btn_label = "Registering..." if st.session_state.is_submitting_action else "Register Account"
-                    reg_submit = st.form_submit_button(reg_btn_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
-                    
-                    if reg_submit and not st.session_state.is_submitting_action:
-                        if new_user.strip() and new_pass.strip() and new_fullname.strip():
-                            st.session_state.is_submitting_action = True
-                            with st.spinner("⏳ Creating patient account..."):
-                                success, err = db.register_patient(new_user.strip(), new_pass.strip(), new_fullname.strip())
-                                st.session_state.is_submitting_action = False
-                                if success:
-                                    st.success(f"🎉 Patient account '{new_user}' created successfully for {new_fullname}! You can now log in.")
-                                else:
-                                    st.error(err)
+                            st.query_params.update({
+                                "auth": "true",
+                                "user": username,
+                                "role": role,
+                                "uid": str(user_id),
+                                "name": full_name
+                            })
+                            
+                            st.success(f"Authenticated successfully as {role}!")
+                            st.rerun()
                         else:
-                            st.error("Please fill in all fields.")
+                            st.error("Invalid username or password. Please try again.")
         return
 
     # --- 2. SIDEBAR NAVIGATION ---
