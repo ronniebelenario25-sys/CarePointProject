@@ -524,12 +524,13 @@ def main():
         
         st.markdown("---")
         
-        admin_tab1, admin_tab2, admin_tab3, admin_tab4, admin_tab5 = st.tabs([
+        admin_tab1, admin_tab2, admin_tab3, admin_tab4, admin_tab5, admin_tab6 = st.tabs([
             "📋 Master Appointment Table", 
             "💵 Cashier Checkout & Schedule", 
             "👥 Manage User Accounts",
             "🩺 Create Doctor Account",
-            "👤 Create User Account"
+            "👤 Create User Account",
+            "➕ Book Walk-In Appointment"
         ])
         
         with admin_tab1:
@@ -723,6 +724,38 @@ def main():
                                 st.error(err)
                     else:
                         st.error("Please fill in all fields.")
+
+        with admin_tab6:
+            st.subheader("➕ Book Walk-In Appointment (Staff / Admin Assisted)")
+            st.markdown("For elderly patients or walk-ins who cannot use the computer themselves. Book their appointment directly into the queue.")
+            
+            with st.form("admin_walkin_booking_form"):
+                col_w1, col_w2 = st.columns(2)
+                with col_w1:
+                    walkin_username = st.text_input("Account Username Handle", value="walkin_patient")
+                    walkin_patient_name = st.text_input("Patient Full Name (e.g., Lolo Juan Santos)")
+                    walkin_doctor = st.selectbox("Assign Attending Physician", doctors_list[1:], key="walkin_doc")
+                with col_w2:
+                    walkin_date = st.date_input("Preferred Date", key="walkin_date")
+                    walkin_time = st.selectbox("Exact Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], key="walkin_time")
+                    walkin_status = st.selectbox("Initial Status", ["Waiting", "Pending Payment", "Completed"], key="walkin_status")
+                
+                walkin_lbl = "Booking Appointment..." if st.session_state.is_submitting_action else "➕ Confirm & Book Walk-In Appointment"
+                walkin_submit = st.form_submit_button(walkin_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                
+                if walkin_submit and not st.session_state.is_submitting_action:
+                    if walkin_patient_name.strip():
+                        st.session_state.is_submitting_action = True
+                        with st.spinner("⏳ Securing walk-in booking and checking schedule conflicts..."):
+                            success, err_msg = db.add_appointment(walkin_username.strip(), walkin_patient_name.strip(), walkin_doctor, str(walkin_date), walkin_time, walkin_status)
+                            st.session_state.is_submitting_action = False
+                            if success:
+                                st.success(f"🎉 Walk-in appointment successfully booked for {walkin_patient_name.strip()} with {walkin_doctor}!")
+                                st.rerun()
+                            else:
+                                st.error(err_msg)
+                    else:
+                        st.error("Please enter a valid patient full name.")
 
     # --- DOCTOR PORTAL ---
     elif role == "Doctor":
