@@ -529,7 +529,7 @@ def main():
             "💵 Cashier Checkout & Schedule", 
             "👥 Manage User Accounts",
             "🩺 Create Doctor Account",
-            "➕ Add New Record"
+            "👤 Create User Account"
         ])
         
         with admin_tab1:
@@ -699,34 +699,30 @@ def main():
                         st.error("Please fill in all required doctor credential fields.")
 
         with admin_tab5:
-            st.subheader("➕ Add a New Master Appointment Record")
-            with st.form("admin_add_form"):
-                col_a1, col_a2 = st.columns(2)
-                with col_a1:
-                    new_acc = st.text_input("Account Username", value="admin")
-                    new_patient = st.text_input("Patient Full Name")
-                    new_doctor = st.selectbox("Assign Doctor", doctors_list[1:], key="add_doc")
-                with col_a2:
-                    new_date = st.date_input("Appointment Date")
-                    new_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], key="add_time")
-                    new_status = st.selectbox("Initial Status", ["Waiting", "Pending Payment", "Completed", "Cancelled"], key="add_status")
+            st.subheader("👤 Create a New Patient User Account")
+            st.markdown("Register a new patient account with a unique username handle and separate patient full name.")
+            
+            with st.form("admin_create_patient_form"):
+                new_user = st.text_input("Choose Unique Login Username (e.g., patient_user)")
+                new_pass = st.text_input("Choose Password", type="password")
+                new_fullname = st.text_input("Patient Full Name (e.g., John Doe)")
                 
-                add_lbl = "Inserting Record..." if st.session_state.is_submitting_action else "➕ Insert New Record"
-                add_submit = st.form_submit_button(add_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                reg_btn_label = "Creating Account..." if st.session_state.is_submitting_action else "👤 Create Patient Account"
+                reg_submit = st.form_submit_button(reg_btn_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
                 
-                if add_submit and not st.session_state.is_submitting_action:
-                    if new_patient.strip():
+                if reg_submit and not st.session_state.is_submitting_action:
+                    if new_user.strip() and new_pass.strip() and new_fullname.strip():
                         st.session_state.is_submitting_action = True
-                        with st.spinner("⏳ Inserting appointment record..."):
-                            success, err = db.add_appointment(new_acc.strip(), new_patient.strip(), new_doctor, str(new_date), new_time, new_status)
+                        with st.spinner("⏳ Creating patient user account..."):
+                            success, err = db.register_patient(new_user.strip(), new_pass.strip(), new_fullname.strip())
                             st.session_state.is_submitting_action = False
                             if success:
-                                st.success(f"Successfully added record for {new_patient}!")
+                                st.success(f"🎉 Patient account '{new_user}' created successfully for {new_fullname}!")
                                 st.rerun()
                             else:
-                                st.error(f"Failed to add record: {err}")
+                                st.error(err)
                     else:
-                        st.error("Please enter a valid patient name.")
+                        st.error("Please fill in all fields.")
 
     # --- DOCTOR PORTAL ---
     elif role == "Doctor":
