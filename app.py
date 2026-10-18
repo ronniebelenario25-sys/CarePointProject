@@ -45,7 +45,7 @@ class DatabaseManager:
             return False, str(e)
 
     def register_doctor(self, username, password, full_name, professional_role, prc_number, ptr_number):
-        """Registers a new doctor account with PRC and PTR credentials"""
+        """Registers a new doctor account safely using core schema columns"""
         try:
             existing = self.supabase.table("users").select("username").eq("username", username).execute()
             if existing.data:
@@ -55,10 +55,7 @@ class DatabaseManager:
                 "username": username,
                 "password": password,
                 "role": "Doctor",
-                "full_name": full_name,
-                "professional_role": professional_role,
-                "prc_number": prc_number,
-                "ptr_number": ptr_number
+                "full_name": full_name
             }
             self.supabase.table("users").insert(user_data).execute()
             return True, None
@@ -662,26 +659,26 @@ def main():
 
         with admin_tab4:
             st.subheader("🩺 Create a New Doctor Account")
-            st.markdown("Add a licensed medical doctor including their professional specialty, PRC license number, and PTR number.")
+            st.markdown("Add a licensed medical doctor account to the system.")
             
             with st.form("create_doctor_form"):
                 col_d1, col_d2 = st.columns(2)
                 with col_d1:
-                    doc_username = st.text_input("Doctor Login Username (e.g., dr_smith)")
+                    doc_username = st.text_input("Doctor Login Username")
                     doc_password = st.text_input("Doctor Password", type="password")
-                    doc_fullname = st.text_input("Doctor Full Name (e.g., Dr. John Smith)")
+                    doc_fullname = st.text_input("Doctor Full Name")
                 with col_d2:
-                    doc_specialty = st.text_input("Professional Role / Specialty (e.g., Cardiologist)")
-                    doc_prc = st.text_input("PRC License Number (e.g., 0012345)")
-                    doc_ptr = st.text_input("PTR Number (e.g., 9876543)")
+                    doc_specialty = st.text_input("Professional Role / Specialty")
+                    doc_prc = st.text_input("PRC License Number")
+                    doc_ptr = st.text_input("PTR Number")
                 
                 button_label = "Registering Doctor..." if st.session_state.is_submitting_action else "🩺 Register Doctor Account"
                 doc_reg_submit = st.form_submit_button(button_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
                 
                 if doc_reg_submit and not st.session_state.is_submitting_action:
-                    if doc_username.strip() and doc_password.strip() and doc_fullname.strip() and doc_specialty.strip() and doc_prc.strip() and doc_ptr.strip():
+                    if doc_username.strip() and doc_password.strip() and doc_fullname.strip():
                         st.session_state.is_submitting_action = True
-                        with st.spinner("⏳ Creating doctor account and securing credentials..."):
+                        with st.spinner("⏳ Creating doctor account..."):
                             success, err = db.register_doctor(
                                 doc_username.strip(), 
                                 doc_password.strip(), 
@@ -692,12 +689,12 @@ def main():
                             )
                             st.session_state.is_submitting_action = False
                             if success:
-                                st.success(f"🎉 Doctor account '{doc_fullname}' ({doc_specialty}) created successfully with PRC #{doc_prc} and PTR #{doc_ptr}!")
+                                st.success(f"🎉 Doctor account '{doc_fullname}' created successfully!")
                                 st.rerun()
                             else:
                                 st.error(err)
                     else:
-                        st.error("Please fill in all required doctor credential fields.")
+                        st.error("Please fill in username, password, and full name.")
 
         with admin_tab5:
             st.subheader("👤 Create a New Patient User Account")
