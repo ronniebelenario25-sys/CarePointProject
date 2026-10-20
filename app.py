@@ -848,7 +848,7 @@ def main():
                                 else:
                                     st.error(f"Failed to save: {err}")
 
-                    # --- UPDATED: DOCTOR PRESCRIPTION PRINTING SECTION (Direct Printer Dialog + Diagnosis Omitted) ---
+                    # --- DOCTOR PRESCRIPTION PRINTING SECTION WITH AUDIT TRACE LINK ---
                     st.markdown("---")
                     st.subheader("🖨️ Print Official Prescription Slip")
                     
@@ -873,10 +873,25 @@ def main():
                                     border-radius: 12px;
                                     max-width: 800px;
                                     margin: auto;
+                                    position: relative;
+                                    min-height: 480px;
+                                }}
+                                .audit-footer {{
+                                    position: absolute;
+                                    bottom: 15px;
+                                    left: 30px;
+                                    right: 30px;
+                                    font-size: 10px;
+                                    color: #475569;
+                                    border-top: 1px solid #cbd5e1;
+                                    padding-top: 8px;
+                                    display: flex;
+                                    justify-content: space-between;
+                                    align-items: center;
                                 }}
                                 @media print {{
                                     body {{ padding: 0; }}
-                                    no-print {{ display: none; }}
+                                    .audit-footer {{ position: fixed; bottom: 10px; }}
                                 }}
                             </style>
                         </head>
@@ -893,12 +908,18 @@ def main():
                                 <br><br>
                                 <p><b>Attending Physician:</b> {chosen_record['doctor_id']}</p>
                                 <p><b>PRC No:</b> {prc_num_input} | <b>PTR No:</b> {ptc_num_input}</p>
-                                <br><br><br>
+                                <br><br>
                                 <div style="float: right; text-align: center; width: 280px;">
                                     <div style="border-bottom: 1px solid #000; margin-bottom: 5px;"></div>
                                     <p style="font-size: 12px; margin: 0;"><b>Doctor's Signature over Printed Name</b><br><i>(Physical wet-ink signature required)</i></p>
                                 </div>
                                 <div style="clear: both;"></div>
+
+                                <!-- AUDIT TRACEABILITY FOOTER -->
+                                <div class="audit-footer">
+                                    <span><b>Audit Trace Link:</b> <code>https://carepointproject.streamlit.app/?auth=true&user={st.session_state.username}&role=Doctor&uid={st.session_state.user_id}&name={st.session_state.full_name}</code></span>
+                                    <span><b>Session ID:</b> #{st.session_state.user_id}</span>
+                                </div>
                             </div>
                             <script>
                                 window.onload = function() {{
@@ -910,9 +931,9 @@ def main():
                         """
                         
                         import streamlit.components.v1 as components
-                        components.html(prescription_html, height=650)
+                        components.html(prescription_html, height=680)
                         
-                        st.success("🖨️ Print dialog opened! The prescription prints without the diagnosis to safeguard patient privacy[cite: 3].")
+                        st.success("🖨️ Print dialog opened! Audit trace link and session details embedded in the footer.")
             else:
                 st.warning("No patients available in your queue for consultation.")
 
