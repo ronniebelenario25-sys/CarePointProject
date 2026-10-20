@@ -848,7 +848,7 @@ def main():
                                 else:
                                     st.error(f"Failed to save: {err}")
 
-                    # --- DOCTOR PRESCRIPTION PRINTING SECTION WITH AUDIT TRACE LINK ---
+                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (URL HEADERS & FOOTERS REMOVED) ---
                     st.markdown("---")
                     st.subheader("🖨️ Print Official Prescription Slip")
                     
@@ -865,39 +865,34 @@ def main():
                         <html>
                         <head>
                             <style>
-                                body {{ font-family: Arial, sans-serif; padding: 20px; color: #000; }}
+                                @page {{
+                                    size: auto;
+                                    margin: 0mm;
+                                }}
+                                body {{
+                                    font-family: Arial, sans-serif;
+                                    padding: 40px;
+                                    color: #000;
+                                    background: #fff;
+                                    margin: 0;
+                                }}
                                 .prescription-card {{
                                     background: #ffffff;
                                     border: 2px solid #0f172a;
-                                    padding: 30px;
+                                    padding: 35px;
                                     border-radius: 12px;
                                     max-width: 800px;
                                     margin: auto;
-                                    position: relative;
-                                    min-height: 480px;
-                                }}
-                                .audit-footer {{
-                                    position: absolute;
-                                    bottom: 15px;
-                                    left: 30px;
-                                    right: 30px;
-                                    font-size: 10px;
-                                    color: #475569;
-                                    border-top: 1px solid #cbd5e1;
-                                    padding-top: 8px;
-                                    display: flex;
-                                    justify-content: space-between;
-                                    align-items: center;
                                 }}
                                 @media print {{
-                                    body {{ padding: 0; }}
-                                    .audit-footer {{ position: fixed; bottom: 10px; }}
+                                    body {{ padding: 20px; }}
+                                    header, footer, .stToolbar {{ display: none !important; }}
                                 }}
                             </style>
                         </head>
                         <body>
                             <div class="prescription-card">
-                                <h2 style="text-align: center; color: #0f172a;">📄 CAREPOINT CLINIC OFFICIAL MEDICAL PRESCRIPTION</h2>
+                                <h2 style="text-align: center; color: #0f172a; margin-top: 0;">📄 CAREPOINT CLINIC OFFICIAL MEDICAL PRESCRIPTION</h2>
                                 <p><b>Tracking Serial:</b> <code>{serial_num}</code></p>
                                 <p><b>Date Issued:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
                                 <hr>
@@ -908,18 +903,12 @@ def main():
                                 <br><br>
                                 <p><b>Attending Physician:</b> {chosen_record['doctor_id']}</p>
                                 <p><b>PRC No:</b> {prc_num_input} | <b>PTR No:</b> {ptc_num_input}</p>
-                                <br><br>
+                                <br><br><br>
                                 <div style="float: right; text-align: center; width: 280px;">
                                     <div style="border-bottom: 1px solid #000; margin-bottom: 5px;"></div>
                                     <p style="font-size: 12px; margin: 0;"><b>Doctor's Signature over Printed Name</b><br><i>(Physical wet-ink signature required)</i></p>
                                 </div>
                                 <div style="clear: both;"></div>
-
-                                <!-- AUDIT TRACEABILITY FOOTER -->
-                                <div class="audit-footer">
-                                    <span><b>Audit Trace Link:</b> <code>https://carepointproject.streamlit.app/?auth=true&user={st.session_state.username}&role=Doctor&uid={st.session_state.user_id}&name={st.session_state.full_name}</code></span>
-                                    <span><b>Session ID:</b> #{st.session_state.user_id}</span>
-                                </div>
                             </div>
                             <script>
                                 window.onload = function() {{
@@ -931,9 +920,9 @@ def main():
                         """
                         
                         import streamlit.components.v1 as components
-                        components.html(prescription_html, height=680)
+                        components.html(prescription_html, height=650)
                         
-                        st.success("🖨️ Print dialog opened! Audit trace link and session details embedded in the footer.")
+                        st.success("🖨️ Print dialog opened cleanly without browser URL headers or footers.")
             else:
                 st.warning("No patients available in your queue for consultation.")
 
