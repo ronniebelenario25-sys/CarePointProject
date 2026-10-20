@@ -847,6 +847,43 @@ def main():
                                     st.rerun()
                                 else:
                                     st.error(f"Failed to save: {err}")
+
+                    # --- ADDED: DOCTOR PRESCRIPTION PRINTING SECTION ---
+                    st.markdown("---")
+                    st.subheader("🖨️ Print Official Prescription Slip")
+                    
+                    col_p_in1, col_p_in2 = st.columns(2)
+                    with col_p_in1:
+                        prc_num_input = st.text_input("Your PRC License Number", value="1234567")
+                    with col_p_in2:
+                        ptc_num_input = st.text_input("Your PTR / Clinic Number", value="PTR-2026-988")
+                    
+                    if st.button("🖨️ Print Prescription Slip Form", use_container_width=True):
+                        serial_num = chosen_record.get('tracking_number') or f"RX-{chosen_record['appointment_date'].replace('-', '')}-{chosen_record['id']}"
+                        st.markdown("---")
+                        st.markdown(f"""
+                        <div class="prescription-card">
+                            <h2 style="text-align: center; color: #0f172a;">📄 CAREPOINT CLINIC OFFICIAL MEDICAL PRESCRIPTION</h2>
+                            <p><b>Tracking Serial:</b> `{serial_num}`</p>
+                            <p><b>Date Issued:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+                            <hr>
+                            <p><b>Patient Name:</b> {chosen_record['patient_name']}</p>
+                            <p><b>Clinical Diagnosis:</b> {chosen_record.get('diagnosis', 'Not specified')}</p>
+                            <br>
+                            <h3>Rx (Prescription Details):</h3>
+                            <p style="font-size: 16px; background: #f1f5f9; padding: 15px; border-radius: 8px;"><b>{chosen_record.get('prescription', 'No medication prescribed yet.')}</b></p>
+                            <br><br>
+                            <p><b>Attending Physician:</b> {chosen_record['doctor_id']}</p>
+                            <p><b>PRC No:</b> {prc_num_input} | <b>PTR No:</b> {ptc_num_input}</p>
+                            <br><br>
+                            <div style="float: right; text-align: center; width: 250px;">
+                                <div style="border-bottom: 1px solid #000; margin-bottom: 5px;"></div>
+                                <p style="font-size: 12px; margin: 0;"><b>Doctor's Signature over Printed Name</b><br><i>(Physical wet-ink signature required)</i></p>
+                            </div>
+                            <div style="clear: both;"></div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        st.info("💡 Present this printed prescription slip to the patient. They must proceed to the cashier/admin to settle payment for validation.")
             else:
                 st.warning("No patients available in your queue for consultation.")
 
