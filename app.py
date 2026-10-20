@@ -849,9 +849,11 @@ def main():
                     with st.form("consultation_form"):
                         st.markdown("### Clinical Examination Notes")
                         existing_complaint = chosen_record.get("patient_complaint") or ""
+                        existing_diag = chosen_record.get("diagnosis") or ""
                         existing_presc = chosen_record.get("prescription") or ""
                         
                         patient_complaint = st.text_area("Patient Complaint / Chief Complaint", value=existing_complaint, placeholder="Enter patient's reported symptoms or complaint...")
+                        diagnosis = st.text_area("Medical Diagnosis", value=existing_diag, placeholder="Enter official diagnosis...")
                         prescription = st.text_area("Prescription & Treatment Plan", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
                         
                         cons_lbl = "Saving Consultation..." if st.session_state.is_submitting_action else "💾 Save Consultation & Send to Cashier"
@@ -860,7 +862,7 @@ def main():
                         if save_consultation and not st.session_state.is_submitting_action:
                             st.session_state.is_submitting_action = True
                             with st.spinner("⏳ Saving clinical notes and generating prescription tracking ID..."):
-                                success, err = db.update_consultation(chosen_record["id"], patient_complaint, "", prescription, chosen_record["appointment_date"])
+                                success, err = db.update_consultation(chosen_record["id"], patient_complaint, diagnosis, prescription, chosen_record["appointment_date"])
                                 st.session_state.is_submitting_action = False
                                 if success:
                                     st.success(f"🎉 Consultation saved for {chosen_record['patient_name']}! Permanent tracking ID generated and patient sent to cashier.")
@@ -868,7 +870,7 @@ def main():
                                 else:
                                     st.error(f"Failed to save: {err}")
 
-                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (CLEAN UI WITH PRESCRIPTION ONLY) ---
+                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (PRESCRIPTION ONLY) ---
                     st.markdown("---")
                     st.subheader("🖨️ Print Official Prescription Slip")
                     
@@ -1041,6 +1043,8 @@ def main():
                             <hr style="margin: 15px 0;">
                             <h4>Patient Complaint</h4>
                             <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('patient_complaint') or 'No complaint recorded yet.'}</p>
+                            <h4 style="margin-top: 15px;">Medical Diagnosis</h4>
+                            <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('diagnosis') or 'No diagnosis recorded yet.'}</p>
                             <h4 style="margin-top: 20px;">Prescription & Treatment Plan</h4>
                             <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('prescription') or 'No prescription issued yet.'}</p>
                             <div style="margin-top: 30px; text-align: right;">
