@@ -655,14 +655,11 @@ def main():
                                     st.session_state.is_submitting_action = False
                                     st.error(f"Error deleting record: {e}")
                     
-                    # --- ADMIN / CASHIER PAYMENT RECEIPT PRINTING STATION (WITH STRICT COMPLETED/PAID CONDITION) ---
+                    # --- ADMIN / CASHIER PAYMENT RECEIPT PRINTING STATION ---
                     st.markdown("---")
                     st.markdown("### 🖨️ Admin Payment Receipt Printing Station")
                     
                     is_paid_and_completed = (str(current_rec.get('status')).strip().lower() == "completed" and current_rec.get('payment_method') and current_rec.get('payment_amount'))
-                    
-                    if not is_paid_and_completed:
-                        st.warning("⚠️ **Printing Restricted:** This record is currently marked as **Pending Payment**, **Waiting**, or **Cancelled**. You must click **'Process Payment & Complete'** above and set the status to **Completed** before printing an official receipt.")
                     
                     if st.button("🖨️ Print Official Payment Receipt Form", use_container_width=True, disabled=not is_paid_and_completed):
                         receipt_html = f"""
@@ -933,7 +930,7 @@ def main():
                                 else:
                                     st.error(f"Failed to save: {err}")
 
-                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (PRESCRIPTION ONLY) ---
+                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (WITH CASHIER STAMP WARNING NOTICE) ---
                     st.markdown("---")
                     st.subheader("🖨️ Print Official Prescription Slip")
                     
@@ -965,6 +962,17 @@ def main():
                                     max-width: 800px;
                                     margin: auto;
                                 }}
+                                .warning-banner {{
+                                    background: #fef2f2;
+                                    border: 1px dashed #dc2626;
+                                    padding: 12px;
+                                    border-radius: 6px;
+                                    margin-top: 25px;
+                                    font-size: 13px;
+                                    color: #991b1b;
+                                    text-align: center;
+                                    font-weight: bold;
+                                }}
                                 @media print {{
                                     body {{ padding: 20px; }}
                                     header, footer, .stToolbar {{ display: none !important; }}
@@ -984,7 +992,11 @@ def main():
                                 <br><br>
                                 <p><b>Attending Physician:</b> {chosen_record['doctor_id']}</p>
                                 <p><b>PRC No:</b> {secure_prc} | <b>PTR No:</b> {secure_ptr}</p>
-                                <br><br><br>
+                                <br>
+                                <div class="warning-banner">
+                                    ⚠️ VALIDATION NOTICE: This prescription is VOID and invalid at any pharmacy unless officially stamped and cleared by the CarePoint Clinic Cashier.
+                                </div>
+                                <br><br>
                                 <div style="float: right; text-align: center; width: 280px;">
                                     <div style="border-bottom: 1px solid #000; margin-bottom: 5px;"></div>
                                     <p style="font-size: 12px; margin: 0;"><b>Doctor's Signature over Printed Name</b><br><i>(Physical wet-ink signature required)</i></p>
@@ -1001,9 +1013,9 @@ def main():
                         """
                         
                         import streamlit.components.v1 as components
-                        components.html(prescription_html, height=650)
+                        components.html(prescription_html, height=700)
                         
-                        st.success("🖨️ Print dialog opened! Prescription slip printed successfully.")
+                        st.success("🖨️ Print dialog opened! Prescription slip printed successfully with cashier validation notice.")
             else:
                 st.warning("No patients available in your queue for consultation.")
 
