@@ -232,7 +232,7 @@ class DatabaseManager:
                 first_names = ["Juan", "Maria", "Jose", "Ana", "Carlos", "Rosa", "Pedro", "Elena", "Miguel", "Lucia"]
                 last_names = ["Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Aquino", "Garcia", "Mendoza", "Torres", "Flores"]
                 times = ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"]
-                statuses = ["Waiting", "Pending Payment", "Completed", "Cancelled", "Promissory Note"]
+                statuses = ["Waiting", "Pending Payment", "Completed", "Cancelled"]
 
                 batch_data = []
                 for doc in doctors:
@@ -245,7 +245,7 @@ class DatabaseManager:
                         status = random.choice(statuses)
                         
                         date_str = appointment_date.replace('-', '')
-                        tracking_num = f"RX-{date_str}-{i+1000}" if status in ["Completed", "Pending Payment", "Promissory Note"] else None
+                        tracking_num = f"RX-{date_str}-{i+1000}" if status in ["Completed", "Pending Payment"] else None
                         
                         batch_data.append({
                             "account_username": "admin",
@@ -254,11 +254,11 @@ class DatabaseManager:
                             "appointment_date": appointment_date,
                             "appointment_time": appointment_time,
                             "status": status,
-                            "diagnosis": "Routine checkup and clinical evaluation normal." if status in ["Completed", "Pending Payment", "Promissory Note"] else None,
-                            "prescription": "Paracetamol 500mg every 4 hours as needed." if status in ["Completed", "Pending Payment", "Promissory Note"] else None,
+                            "diagnosis": "Routine checkup and clinical evaluation normal." if status in ["Completed", "Pending Payment"] else None,
+                            "prescription": "Paracetamol 500mg every 4 hours as needed." if status in ["Completed", "Pending Payment"] else None,
                             "tracking_number": tracking_num,
-                            "payment_method": "Cash" if status in ["Completed", "Promissory Note"] else None,
-                            "payment_amount": "500.00" if status in ["Completed", "Promissory Note"] else None
+                            "payment_method": "Cash" if status == "Completed" else None,
+                            "payment_amount": "500.00" if status == "Completed" else None
                         })
                 
                 for j in range(0, len(batch_data), 100):
@@ -313,7 +313,7 @@ def render_modern_table(records):
             "appointment_time": st.column_config.TextColumn("Time"),
             "status": st.column_config.SelectboxColumn(
                 "Status",
-                options=["Waiting", "Pending Payment", "Completed", "Cancelled", "Promissory Note"],
+                options=["Waiting", "Pending Payment", "Completed", "Cancelled"],
                 required=True
             ),
             "tracking_number": st.column_config.TextColumn("Tracking ID"),
@@ -530,13 +530,13 @@ def main():
 
     # --- 3. ROLE-BASED DASHBOARDS ---
     
-    # --- ADMIN / CASHIER PORTAL ---
+    # --- ADMIN PORTAL ---
     if role == "Admin":
         st.title("🛠️ Administrative Control Center (Cashier & Master Management)")
         st.markdown("System-wide master monitoring dashboard, cashier payment processing, and scheduling management.")
         
         records = db.get_all_appointments()
-        pending_payment_count = len([r for r in records if r.get("status") in ["Pending Payment", "Promissory Note"]])
+        pending_payment_count = len([r for r in records if r.get("status") == "Pending Payment"])
         
         m1, m2, m3 = st.columns(3)
         m1.metric(label="Total Database Records", value=len(records))
@@ -547,7 +547,7 @@ def main():
         
         admin_tab1, admin_tab2, admin_tab3, admin_tab4, admin_tab5, admin_tab6 = st.tabs([
             "📋 Master Appointment Table", 
-            "💵 Cashier Checkout & Receipt Stamping", 
+            "💵 Cashier Checkout & Schedule", 
             "👥 Manage User Accounts",
             "🩺 Create Doctor Account",
             "👤 Create User Account",
@@ -559,8 +559,8 @@ def main():
             render_modern_table(records)
                 
         with admin_tab2:
-            st.subheader("💵 Cashier Payment Verification, Promissory Notes & Receipt Stamping Desk")
-            st.markdown("Process payments or promissory notes to unlock official stamped receipts and verified prescription printouts.")
+            st.subheader("💵 Cashier Payment Verification & Checkout Desk")
+            st.markdown("Process consultation payments and print official receipts or prescriptions separately.")
             
             if records:
                 sorted_records = sorted(records, key=lambda x: int(x['id']))
@@ -574,6 +574,7 @@ def main():
                     with st.form("admin_cashier_form"):
                         st.markdown(f"### 💳 Checkout & Verification for Patient: **{current_rec['patient_name']}** (ID #{current_rec['id']})")
                         
+                        # --- CASHIER SECURE VIEW (Prescription & Appointment info ONLY, Diagnosis Hidden) ---
                         st.markdown("---")
                         st.markdown("#### 📄 Authenticated Appointment & Prescription Details (Cashier View)")
                         rx_serial = current_rec.get('tracking_number') or f"RX-PENDING-{current_rec.get('id')}"
@@ -589,9 +590,9 @@ def main():
                             pay_method = st.selectbox("Payment Method", ["Cash", "GCash", "Credit/Debit Card", "Health Insurance / HMO"], index=0)
                             pay_amount = st.text_input("Payment Amount (PHP)", value="500.00")
                         with col_c2:
-                            status_options = ["Pending Payment", "Completed", "Promissory Note", "Waiting", "Cancelled"]
+                            status_options = ["Pending Payment", "Completed", "Waiting", "Cancelled"]
                             default_status_index = status_options.index(current_rec['status']) if current_rec['status'] in status_options else 1
-                            edit_status_cashier = st.selectbox("Update Clearance Status", status_options, index=default_status_index)
+                            edit_status_cashier = st.selectbox("Update Status", status_options, index=default_status_index)
                         
                         st.markdown("---")
                         st.markdown("### 📋 Schedule Details")
@@ -605,7 +606,7 @@ def main():
                             edit_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(current_rec['appointment_time']) if current_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
                         
                         col_btn1, col_btn2 = st.columns(2)
-                        pay_lbl = "Processing..." if st.session_state.is_submitting_action else "💰 Process Clearance & Save"
+                        pay_lbl = "Processing..." if st.session_state.is_submitting_action else "💰 Process Payment & Complete"
                         del_lbl = "Deleting..." if st.session_state.is_submitting_action else "🗑️ Delete Record"
                         
                         process_pay_btn = col_btn1.form_submit_button(pay_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
@@ -613,14 +614,14 @@ def main():
                         
                         if process_pay_btn and not st.session_state.is_submitting_action:
                             st.session_state.is_submitting_action = True
-                            with st.spinner("⏳ Processing financial status..."):
+                            with st.spinner("⏳ Processing payment..."):
                                 success, err = db.process_cashier_payment(selected_id, pay_method, pay_amount, edit_status_cashier, edit_acc, edit_patient, edit_doctor, edit_date, edit_time)
                                 st.session_state.is_submitting_action = False
                                 if success:
-                                    st.success(f"Record #{selected_id} updated! Status: {edit_status_cashier}.")
+                                    st.success(f"Payment of ₱{pay_amount} processed via {pay_method} for Record #{selected_id}! Status updated to {edit_status_cashier}.")
                                     st.rerun()
                                 else:
-                                    st.error(f"Error processing update: {err}")
+                                    st.error(f"Error processing payment: {err}")
                                     
                         if delete_btn and not st.session_state.is_submitting_action:
                             st.session_state.is_submitting_action = True
@@ -634,38 +635,6 @@ def main():
                                     st.session_state.is_submitting_action = False
                                     st.error(f"Error deleting record: {e}")
 
-                    st.markdown("---")
-                    st.subheader("🖨️ Official Payment Receipt & Stamped Document Generator")
-                    
-                    # STAMP & PRINT GATEWAY LOGIC
-                    if current_rec['status'] in ["Completed", "Promissory Note"]:
-                        is_promissory = (current_rec['status'] == "Promissory Note")
-                        stamp_heading = "PROMISSORY NOTE CLEARED" if is_promissory else "PAID - CASHIER VERIFIED"
-                        stamp_color = "#d97706" if is_promissory else "#16a34a"
-                        
-                        st.markdown(f"""
-                        <div style="border: 2px dashed #333; padding: 25px; border-radius: 12px; background-color: #ffffff;">
-                            <h2 style="text-align: center; color: #1e293b;">🏥 CAREPOINT CLINIC OFFICIAL PAYMENT RECEIPT</h2>
-                            <p><b>Tracking ID / Serial:</b> {current_rec.get('tracking_number', 'N/A')}</p>
-                            <p><b>Patient Name:</b> {current_rec['patient_name']}</p>
-                            <p><b>Attending Physician:</b> {current_rec['doctor_id']}</p>
-                            <p><b>Amount Due:</b> ₱{current_rec.get('payment_amount', '500.00')}</p>
-                            <p><b>Payment Method:</b> {current_rec.get('payment_method', 'Cash')}</p>
-                            <p><b>Clearance Status:</b> {current_rec['status']}</p>
-                            <hr>
-                            <div style="text-align: center; margin: 20px 0;">
-                                <span style="border: 4px solid {stamp_color}; color: {stamp_color}; padding: 12px 30px; font-size: 22px; font-weight: 800; letter-spacing: 2px; border-radius: 8px; display: inline-block;">
-                                    [{stamp_heading}]
-                                </span>
-                            </div>
-                            <p style="text-align: center; font-size: 13px; color: #64748b;">This receipt is officially stamped and verified by the Cashier / Admin system.</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        st.info("💡 You can now print this receipt or present the verified status badge for pharmacy / release clearance.")
-                    else:
-                        st.warning("⚠️ **Document Locked:** The payment status must be marked as `Completed` (Paid) or `Promissory Note` before the official receipt and authentication stamp can be generated.")
-
-        # [Other admin tabs: Manage User Accounts, Create Doctor Account, Create User Account, Book Walk-In...]
         with admin_tab3:
             st.subheader("👥 User Account Directory & Management")
             render_users_table(users_list)
@@ -853,10 +822,10 @@ def main():
                             f"**Diagnosis:** {chosen_rec.get('diagnosis', 'Pending evaluation')}\n\n"
                             f"**Prescription:** {chosen_rec.get('prescription', 'No prescription issued yet.')}")
                     
-                    if chosen_rec['status'] in ["Completed", "Promissory Note"]:
-                        st.success(f"✅ Transaction verified by Cashier ({chosen_rec['status']}). Official receipt unlocked.")
+                    if chosen_rec['status'] == "Completed":
+                        st.success("✅ Payment verified by cashier.")
                     else:
-                        st.warning("⚠️ Payment or promissory note clearance pending with cashier.")
+                        st.warning("⚠️ Payment pending with cashier.")
                         
         with pt_tab2:
             st.subheader("Book a New Consultation Appointment")
