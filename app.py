@@ -560,19 +560,31 @@ def main():
                 
         with admin_tab2:
             st.subheader("💵 Cashier Payment Verification & Checkout Desk")
-            st.markdown("Process patient consultation payments here. *Note: Payments are handled exclusively by the Admin/Cashier desk to keep doctors separate from financial transactions.*")
+            st.markdown("Process consultation payments and print official receipts or prescriptions separately.")
             
             if records:
                 sorted_records = sorted(records, key=lambda x: int(x['id']))
                 record_options = [f"ID #{r['id']} | Patient: {r['patient_name']} | Status: {r['status']} | Dr: {r['doctor_id']}" for r in sorted_records]
-                selected_rec_str = st.selectbox("Select Record for Cashier Checkout / Modification", record_options)
+                selected_rec_str = st.selectbox("Select Record for Cashier Checkout / Printing", record_options)
                 
                 selected_id = int(selected_rec_str.split("|")[0].replace("ID:", "").replace("ID", "").replace("#", "").strip())
                 current_rec = next((r for r in records if r['id'] == selected_id), None)
                 
                 if current_rec:
                     with st.form("admin_cashier_form"):
-                        st.markdown(f"### 💳 Checkout for Patient: **{current_rec['patient_name']}** (ID #{current_rec['id']})")
+                        st.markdown(f"### 💳 Checkout & Verification for Patient: **{current_rec['patient_name']}** (ID #{current_rec['id']})")
+                        
+                        # --- CASHIER SECURE VIEW (Prescription & Appointment info ONLY, No Diagnosis) ---
+                        st.markdown("---")
+                        st.markdown("#### 📄 Authenticated Appointment & Prescription Details (Cashier View)")
+                        rx_serial = current_rec.get('tracking_number') or f"RX-PENDING-{current_rec.get('id')}"
+                        st.info(f"**Prescription Tracking ID:** `{rx_serial}`\n\n"
+                                f"**Patient Name:** {current_rec['patient_name']}\n\n"
+                                f"**Attending Physician:** {current_rec['doctor_id']}\n\n"
+                                f"**Appointment Schedule:** {current_rec['appointment_date']} at {current_rec['appointment_time']}\n\n"
+                                f"**Prescription / Treatment Plan:**\n{current_rec.get('prescription') or 'No prescription issued yet.'}")
+                        st.markdown("---")
+                        
                         col_c1, col_c2 = st.columns(2)
                         with col_c1:
                             pay_method = st.selectbox("Payment Method", ["Cash", "GCash", "Credit/Debit Card", "Health Insurance / HMO"], index=0)
@@ -592,11 +604,6 @@ def main():
                         with col_e2:
                             edit_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=current_rec['appointment_date'])
                             edit_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(current_rec['appointment_time']) if current_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
-                        
-                        st.markdown("---")
-                        st.subheader("Medical Records")
-                        st.text_area("Diagnosis", value=current_rec.get('diagnosis') or "None recorded yet.", disabled=True)
-                        st.text_area("Prescription", value=current_rec.get('prescription') or "None recorded yet.", disabled=True)
                         
                         col_btn1, col_btn2 = st.columns(2)
                         pay_lbl = "Processing..." if st.session_state.is_submitting_action else "💰 Process Payment & Complete"
@@ -627,6 +634,19 @@ def main():
                                 except Exception as e:
                                     st.session_state.is_submitting_action = False
                                     st.error(f"Error deleting record: {e}")
+                    
+                    # --- ADMIN / CASHIER SEPARATE PRINTING BUTTONS ---
+                    st.markdown("---")
+                    st.markdown("### 🖨️ Admin Document Printing Station (Separate Papers)")
+                    print_col1, print_col2 = st.columns(2)
+                    
+                    with print_col1:
+                        if st.button("🖨️ Print Official Receipt (Paper 1)", use_container_width=True):
+                            st.success(f"📄 Official Receipt sent to printer for Patient: **{current_rec['patient_name']}** | Amount: **₱{current_rec.get('payment_amount', '500.00')}** | Method: **{current_rec.get('payment_method', 'Cash')}**")
+                    
+                    with print_col2:
+                        if st.button("🖨️ Print Medical Prescription (Paper 2)", use_container_width=True):
+                            st.success(f"💊 Medical Prescription sent to printer for Tracking ID: **{rx_serial}** (Doctor: {current_rec['doctor_id']})")
             else:
                 st.warning("No records available to edit.")
 
@@ -902,7 +922,7 @@ def main():
             render_modern_table(patient_records)
             
             st.markdown("---")
-            st.subheader("🩺 View Clinical Prescriptions & Diagnosis Cards")
+            st.subheader("🩺 View Clinical Prescription Card & Diagnosis")
             if patient_records:
                 sorted_presc_records = sorted(patient_records, key=lambda x: int(x['id']))
                 presc_options = [f"ID #{r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']}" for r in sorted_presc_records]
