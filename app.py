@@ -672,7 +672,7 @@ def main():
                                 }}
                                 body {{
                                     font-family: Arial, sans-serif;
-                                    padding: 40px;
+                                    padding: 20px;
                                     color: #000;
                                     background: #fff;
                                     margin: 0;
@@ -680,13 +680,15 @@ def main():
                                 .receipt-card {{
                                     background: #ffffff;
                                     border: 2px solid #0f172a;
-                                    padding: 35px;
+                                    padding: 25px;
                                     border-radius: 12px;
-                                    max-width: 800px;
+                                    max-width: 700px;
+                                    width: 100%;
+                                    box-sizing: border-box;
                                     margin: auto;
                                 }}
                                 @media print {{
-                                    body {{ padding: 20px; }}
+                                    body {{ padding: 10px; }}
                                     header, footer, .stToolbar {{ display: none !important; }}
                                 }}
                             </style>
@@ -707,7 +709,7 @@ def main():
                                     <b>Payment Method:</b> {current_rec.get('payment_method', 'Cash')}<br>
                                     <b>Status:</b> Completed & Verified
                                 </p>
-                                <br><br><br>
+                                <br><br>
                                 <div style="float: right; text-align: center; width: 280px;">
                                     <div style="border-bottom: 1px solid #000; margin-bottom: 5px;"></div>
                                     <p style="font-size: 12px; margin: 0;"><b>Authorized Cashier Signature</b><br><i>(CarePoint Cashier Desk)</i></p>
@@ -724,7 +726,7 @@ def main():
                         """
                         
                         import streamlit.components.v1 as components
-                        components.html(receipt_html, height=650)
+                        components.html(receipt_html, height=600)
                         
                         st.success(f"🖨️ Print dialog opened for Official Receipt (Patient: **{current_rec['patient_name']}** | Amount: **₱{current_rec.get('payment_amount', '500.00')}**).")
             else:
@@ -930,7 +932,7 @@ def main():
                                 else:
                                     st.error(f"Failed to save: {err}")
 
-                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (WITH CASHIER STAMP WARNING NOTICE) ---
+                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (FIXED LAYOUT & NOTICE PLACED BESIDE SIGNATURE) ---
                     st.markdown("---")
                     st.subheader("🖨️ Print Official Prescription Slip")
                     
@@ -949,7 +951,7 @@ def main():
                                 }}
                                 body {{
                                     font-family: Arial, sans-serif;
-                                    padding: 40px;
+                                    padding: 20px;
                                     color: #000;
                                     background: #fff;
                                     margin: 0;
@@ -957,51 +959,53 @@ def main():
                                 .prescription-card {{
                                     background: #ffffff;
                                     border: 2px solid #0f172a;
-                                    padding: 35px;
+                                    padding: 25px;
                                     border-radius: 12px;
-                                    max-width: 800px;
+                                    max-width: 700px;
+                                    width: 100%;
+                                    box-sizing: border-box;
                                     margin: auto;
                                 }}
-                                .warning-banner {{
+                                .warning-box {{
                                     background: #fef2f2;
                                     border: 1px dashed #dc2626;
-                                    padding: 12px;
+                                    padding: 8px 10px;
                                     border-radius: 6px;
-                                    margin-top: 25px;
-                                    font-size: 13px;
+                                    font-size: 11px;
                                     color: #991b1b;
-                                    text-align: center;
-                                    font-weight: bold;
+                                    line-height: 1.3;
                                 }}
                                 @media print {{
-                                    body {{ padding: 20px; }}
+                                    body {{ padding: 10px; }}
                                     header, footer, .stToolbar {{ display: none !important; }}
                                 }}
                             </style>
                         </head>
                         <body>
                             <div class="prescription-card">
-                                <h2 style="text-align: center; color: #0f172a; margin-top: 0;">📄 CAREPOINT CLINIC OFFICIAL MEDICAL PRESCRIPTION</h2>
-                                <p><b>Tracking Serial:</b> <code>{serial_num}</code></p>
-                                <p><b>Date Issued:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-                                <hr>
-                                <p><b>Patient Name:</b> {chosen_record['patient_name']}</p>
-                                <br>
-                                <h3>Rx (Prescription & Treatment Plan):</h3>
-                                <p style="font-size: 16px; background: #f1f5f9; padding: 15px; border-radius: 8px;"><b>{chosen_record.get('prescription', 'No medication prescribed yet.')}</b></p>
-                                <br><br>
-                                <p><b>Attending Physician:</b> {chosen_record['doctor_id']}</p>
-                                <p><b>PRC No:</b> {secure_prc} | <b>PTR No:</b> {secure_ptr}</p>
-                                <br>
-                                <div class="warning-banner">
-                                    ⚠️ VALIDATION NOTICE: This prescription is VOID and invalid at any pharmacy unless officially stamped and cleared by the CarePoint Clinic Cashier.
-                                </div>
-                                <br><br>
-                                <div style="float: right; text-align: center; width: 280px;">
-                                    <div style="border-bottom: 1px solid #000; margin-bottom: 5px;"></div>
-                                    <p style="font-size: 12px; margin: 0;"><b>Doctor's Signature over Printed Name</b><br><i>(Physical wet-ink signature required)</i></p>
-                                </div>
-                                <div style="clear: both;"></div>
+                                <h2 style="text-align: center; color: #0f172a; margin-top: 0; font-size: 18px;">📄 CAREPOINT CLINIC OFFICIAL MEDICAL PRESCRIPTION</h2>
+                                <p style="margin: 5px 0; font-size: 13px;"><b>Tracking Serial:</b> <code>{serial_num}</code> | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+                                <hr style="margin: 10px 0;">
+                                <p style="margin: 5px 0; font-size: 14px;"><b>Patient Name:</b> {chosen_record['patient_name']}</p>
+                                <h3 style="margin: 15px 0 5px 0; font-size: 14px;">Rx (Prescription & Treatment Plan):</h3>
+                                <p style="font-size: 14px; background: #f1f5f9; padding: 12px; border-radius: 6px; margin: 0 0 20px 0;"><b>{chosen_record.get('prescription', 'No medication prescribed yet.')}</b></p>
+                                
+                                <p style="margin: 5px 0; font-size: 13px;"><b>Attending Physician:</b> {chosen_record['doctor_id']}</p>
+                                <p style="margin: 5px 0 20px 0; font-size: 13px;"><b>PRC No:</b> {secure_prc} | <b>PTR No:</b> {secure_ptr}</p>
+                                
+                                <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                                    <tr>
+                                        <td style="width: 55%; vertical-align: top; padding-right: 15px;">
+                                            <div class="warning-box">
+                                                ⚠️ <b>NOTICE:</b> This prescription is VOID and invalid at any pharmacy unless officially stamped and cleared by the CarePoint Clinic Cashier.
+                                            </div>
+                                        </td>
+                                        <td style="width: 45%; vertical-align: bottom; text-align: center;">
+                                            <div style="border-bottom: 1px solid #000; margin-bottom: 5px; width: 100%;"></div>
+                                            <p style="font-size: 11px; margin: 0;"><b>Doctor's Signature over Printed Name</b><br><i>(Physical wet-ink signature required)</i></p>
+                                        </td>
+                                    </tr>
+                                </table>
                             </div>
                             <script>
                                 window.onload = function() {{
@@ -1013,9 +1017,9 @@ def main():
                         """
                         
                         import streamlit.components.v1 as components
-                        components.html(prescription_html, height=700)
+                        components.html(prescription_html, height=550)
                         
-                        st.success("🖨️ Print dialog opened! Prescription slip printed successfully with cashier validation notice.")
+                        st.success("🖨️ Print dialog opened! Prescription slip formatted to fit a single page cleanly.")
             else:
                 st.warning("No patients available in your queue for consultation.")
 
