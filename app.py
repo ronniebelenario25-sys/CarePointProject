@@ -232,7 +232,7 @@ class DatabaseManager:
                 first_names = ["Juan", "Maria", "Jose", "Ana", "Carlos", "Rosa", "Pedro", "Elena", "Miguel", "Lucia"]
                 last_names = ["Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Aquino", "Garcia", "Mendoza", "Torres", "Flores"]
                 times = ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"]
-                statuses = ["Waiting", "Pending Payment", "Completed", "Cancelled"]
+                statuses = ["Waiting", "Pending Payment", "Completed", "Cancelled", "Promissory Note"]
 
                 batch_data = []
                 for doc in doctors:
@@ -245,7 +245,7 @@ class DatabaseManager:
                         status = random.choice(statuses)
                         
                         date_str = appointment_date.replace('-', '')
-                        tracking_num = f"RX-{date_str}-{i+1000}" if status in ["Completed", "Pending Payment"] else None
+                        tracking_num = f"RX-{date_str}-{i+1000}" if status in ["Completed", "Pending Payment", "Promissory Note"] else None
                         
                         batch_data.append({
                             "account_username": "admin",
@@ -254,11 +254,11 @@ class DatabaseManager:
                             "appointment_date": appointment_date,
                             "appointment_time": appointment_time,
                             "status": status,
-                            "diagnosis": "Routine checkup and clinical evaluation normal." if status in ["Completed", "Pending Payment"] else None,
-                            "prescription": "Paracetamol 500mg every 4 hours as needed." if status in ["Completed", "Pending Payment"] else None,
+                            "diagnosis": "Routine checkup and clinical evaluation normal." if status in ["Completed", "Pending Payment", "Promissory Note"] else None,
+                            "prescription": "Paracetamol 500mg every 4 hours as needed." if status in ["Completed", "Pending Payment", "Promissory Note"] else None,
                             "tracking_number": tracking_num,
-                            "payment_method": "Cash" if status == "Completed" else None,
-                            "payment_amount": "500.00" if status == "Completed" else None
+                            "payment_method": "Cash" if status in ["Completed", "Promissory Note"] else None,
+                            "payment_amount": "500.00" if status in ["Completed", "Promissory Note"] else None
                         })
                 
                 for j in range(0, len(batch_data), 100):
@@ -313,7 +313,7 @@ def render_modern_table(records):
             "appointment_time": st.column_config.TextColumn("Time"),
             "status": st.column_config.SelectboxColumn(
                 "Status",
-                options=["Waiting", "Pending Payment", "Completed", "Cancelled"],
+                options=["Waiting", "Pending Payment", "Completed", "Cancelled", "Promissory Note"],
                 required=True
             ),
             "tracking_number": st.column_config.TextColumn("Tracking ID"),
@@ -530,13 +530,13 @@ def main():
 
     # --- 3. ROLE-BASED DASHBOARDS ---
     
-    # --- ADMIN PORTAL ---
+    # --- ADMIN / CASHIER PORTAL ---
     if role == "Admin":
         st.title("🛠️ Administrative Control Center (Cashier & Master Management)")
         st.markdown("System-wide master monitoring dashboard, cashier payment processing, and scheduling management.")
         
         records = db.get_all_appointments()
-        pending_payment_count = len([r for r in records if r.get("status") == "Pending Payment"])
+        pending_payment_count = len([r for r in records if r.get("status") in ["Pending Payment", "Promissory Note"]])
         
         m1, m2, m3 = st.columns(3)
         m1.metric(label="Total Database Records", value=len(records))
@@ -547,7 +547,7 @@ def main():
         
         admin_tab1, admin_tab2, admin_tab3, admin_tab4, admin_tab5, admin_tab6 = st.tabs([
             "📋 Master Appointment Table", 
-            "💵 Cashier Checkout & Schedule", 
+            "💵 Cashier Checkout & Receipt Stamping", 
             "👥 Manage User Accounts",
             "🩺 Create Doctor Account",
             "👤 Create User Account",
@@ -559,8 +559,8 @@ def main():
             render_modern_table(records)
                 
         with admin_tab2:
-            st.subheader("💵 Cashier Payment Verification & Checkout Desk")
-            st.markdown("Process consultation payments and print official receipts or prescriptions separately.")
+            st.subheader("💵 Cashier Payment Verification, Promissory Notes & Receipt Stamping Desk")
+            st.markdown("Process payments or promissory notes to unlock official stamped receipts and verified prescription printouts.")
             
             if records:
                 sorted_records = sorted(records, key=lambda x: int(x['id']))
@@ -574,7 +574,6 @@ def main():
                     with st.form("admin_cashier_form"):
                         st.markdown(f"### 💳 Checkout & Verification for Patient: **{current_rec['patient_name']}** (ID #{current_rec['id']})")
                         
-                        # --- CASHIER SECURE VIEW (Prescription & Appointment info ONLY, Diagnosis Hidden) ---
                         st.markdown("---")
                         st.markdown("#### 📄 Authenticated Appointment & Prescription Details (Cashier View)")
                         rx_serial = current_rec.get('tracking_number') or f"RX-PENDING-{current_rec.get('id')}"
@@ -590,9 +589,9 @@ def main():
                             pay_method = st.selectbox("Payment Method", ["Cash", "GCash", "Credit/Debit Card", "Health Insurance / HMO"], index=0)
                             pay_amount = st.text_input("Payment Amount (PHP)", value="500.00")
                         with col_c2:
-                            status_options = ["Pending Payment", "Completed", "Waiting", "Cancelled"]
+                            status_options = ["Pending Payment", "Completed", "Promissory Note", "Waiting", "Cancelled"]
                             default_status_index = status_options.index(current_rec['status']) if current_rec['status'] in status_options else 1
-                            edit_status_cashier = st.selectbox("Update Status", status_options, index=default_status_index)
+                            edit_status_cashier = st.selectbox("Update Clearance Status", status_options, index=default_status_index)
                         
                         st.markdown("---")
                         st.markdown("### 📋 Schedule Details")
@@ -606,7 +605,7 @@ def main():
                             edit_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(current_rec['appointment_time']) if current_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
                         
                         col_btn1, col_btn2 = st.columns(2)
-                        pay_lbl = "Processing..." if st.session_state.is_submitting_action else "💰 Process Payment & Complete"
+                        pay_lbl = "Processing..." if st.session_state.is_submitting_action else "💰 Process Clearance & Save"
                         del_lbl = "Deleting..." if st.session_state.is_submitting_action else "🗑️ Delete Record"
                         
                         process_pay_btn = col_btn1.form_submit_button(pay_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
@@ -614,14 +613,14 @@ def main():
                         
                         if process_pay_btn and not st.session_state.is_submitting_action:
                             st.session_state.is_submitting_action = True
-                            with st.spinner("⏳ Processing payment..."):
+                            with st.spinner("⏳ Processing financial status..."):
                                 success, err = db.process_cashier_payment(selected_id, pay_method, pay_amount, edit_status_cashier, edit_acc, edit_patient, edit_doctor, edit_date, edit_time)
                                 st.session_state.is_submitting_action = False
                                 if success:
-                                    st.success(f"Payment of ₱{pay_amount} processed via {pay_method} for Record #{selected_id}! Status updated to {edit_status_cashier}.")
+                                    st.success(f"Record #{selected_id} updated! Status: {edit_status_cashier}.")
                                     st.rerun()
                                 else:
-                                    st.error(f"Error processing payment: {err}")
+                                    st.error(f"Error processing update: {err}")
                                     
                         if delete_btn and not st.session_state.is_submitting_action:
                             st.session_state.is_submitting_action = True
@@ -634,398 +633,247 @@ def main():
                                 except Exception as e:
                                     st.session_state.is_submitting_action = False
                                     st.error(f"Error deleting record: {e}")
-                    
-                    # --- ADMIN / CASHIER SEPARATE PRINTING BUTTONS ---
-                    st.markdown("---")
-                    st.markdown("### 🖨️ Admin Document Printing Station (Separate Papers)")
-                    print_col1, print_col2 = st.columns(2)
-                    
-                    with print_col1:
-                        if st.button("🖨️ Print Official Receipt (Paper 1)", use_container_width=True):
-                            st.success(f"📄 Official Receipt sent to printer for Patient: **{current_rec['patient_name']}** | Amount: **₱{current_rec.get('payment_amount', '500.00')}** | Method: **{current_rec.get('payment_method', 'Cash')}**")
-                    
-                    with print_col2:
-                        if st.button("🖨️ Print Medical Prescription (Paper 2)", use_container_width=True):
-                            st.success(f"💊 Medical Prescription sent to printer for Tracking ID: **{rx_serial}** (Doctor: {current_rec['doctor_id']})")
-            else:
-                st.warning("No records available to edit.")
 
+                    st.markdown("---")
+                    st.subheader("🖨️ Official Payment Receipt & Stamped Document Generator")
+                    
+                    # STAMP & PRINT GATEWAY LOGIC
+                    if current_rec['status'] in ["Completed", "Promissory Note"]:
+                        is_promissory = (current_rec['status'] == "Promissory Note")
+                        stamp_heading = "PROMISSORY NOTE CLEARED" if is_promissory else "PAID - CASHIER VERIFIED"
+                        stamp_color = "#d97706" if is_promissory else "#16a34a"
+                        
+                        st.markdown(f"""
+                        <div style="border: 2px dashed #333; padding: 25px; border-radius: 12px; background-color: #ffffff;">
+                            <h2 style="text-align: center; color: #1e293b;">🏥 CAREPOINT CLINIC OFFICIAL PAYMENT RECEIPT</h2>
+                            <p><b>Tracking ID / Serial:</b> {current_rec.get('tracking_number', 'N/A')}</p>
+                            <p><b>Patient Name:</b> {current_rec['patient_name']}</p>
+                            <p><b>Attending Physician:</b> {current_rec['doctor_id']}</p>
+                            <p><b>Amount Due:</b> ₱{current_rec.get('payment_amount', '500.00')}</p>
+                            <p><b>Payment Method:</b> {current_rec.get('payment_method', 'Cash')}</p>
+                            <p><b>Clearance Status:</b> {current_rec['status']}</p>
+                            <hr>
+                            <div style="text-align: center; margin: 20px 0;">
+                                <span style="border: 4px solid {stamp_color}; color: {stamp_color}; padding: 12px 30px; font-size: 22px; font-weight: 800; letter-spacing: 2px; border-radius: 8px; display: inline-block;">
+                                    [{stamp_heading}]
+                                </span>
+                            </div>
+                            <p style="text-align: center; font-size: 13px; color: #64748b;">This receipt is officially stamped and verified by the Cashier / Admin system.</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        st.info("💡 You can now print this receipt or present the verified status badge for pharmacy / release clearance.")
+                    else:
+                        st.warning("⚠️ **Document Locked:** The payment status must be marked as `Completed` (Paid) or `Promissory Note` before the official receipt and authentication stamp can be generated.")
+
+        # [Other admin tabs: Manage User Accounts, Create Doctor Account, Create User Account, Book Walk-In...]
         with admin_tab3:
-            st.subheader("👥 Manage Registered User Accounts")
-            st.markdown("Filter, search, and manage registered patient and doctor accounts in Supabase.")
-            
-            search_query = st.text_input("🔍 Search Accounts by Username or User ID", placeholder="Type username or user ID to filter...").strip().lower()
-            non_admin_users = [u for u in users_list if str(u.get("role")).lower() != "admin"]
-            
-            if search_query:
-                filtered_users = [
-                    u for u in non_admin_users 
-                    if search_query in str(u.get("username", "")).lower() 
-                    or search_query in str(u.get("id", "")).lower()
-                ]
-            else:
-                filtered_users = non_admin_users
-                
-            acc_tab1, acc_tab2 = st.tabs(["👤 Patient Accounts", "🩺 Doctor Accounts"])
-            patients = [u for u in filtered_users if str(u.get("role")).lower() == "patient"]
-            doctors = [u for u in filtered_users if str(u.get("role")).lower() == "doctor"]
-            
-            with acc_tab1:
-                st.markdown(f"### 👤 Registered Patients ({len(patients)})")
-                render_users_table(patients)
-                
-            with acc_tab2:
-                st.markdown(f"### 🩺 Registered Doctors ({len(doctors)})")
-                render_doctors_table(doctors)
+            st.subheader("👥 User Account Directory & Management")
+            render_users_table(users_list)
             
             st.markdown("---")
             st.subheader("🗑️ Delete User Account")
-            if filtered_users:
-                user_options = [f"ID: {u['id']} | Username: {u['username']} | Role: {u['role']}" for u in filtered_users]
-                selected_user_str = st.selectbox("Select User Account to Delete", user_options)
-                
-                sel_user_id = int(selected_user_str.split("|")[0].replace("ID:", "").strip())
-                sel_username = selected_user_str.split("|")[1].replace("Username:", "").strip()
-                
-                del_acc_lbl = "Deleting User..." if st.session_state.is_submitting_action else "🗑️ Permanently Delete User Account"
-                if st.button(del_acc_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action):
-                    st.session_state.is_submitting_action = True
-                    with st.spinner("⏳ Permanently deleting user and associated appointments..."):
-                        success, err = db.delete_user_completely(sel_user_id, sel_username)
-                        st.session_state.is_submitting_action = False
+            with st.form("delete_user_form"):
+                user_to_delete_username = st.text_input("Enter Username to Delete Permanently")
+                del_user_submit = st.form_submit_button("Delete User & Associated Records")
+                if del_user_submit:
+                    target_user = next((u for u in users_list if u.get('username') == user_to_delete_username), None)
+                    if target_user:
+                        success, err = db.delete_user_completely(target_user.get('id'), user_to_delete_username)
                         if success:
-                            st.success(f"User account '{sel_username}' (ID: #{sel_user_id}) and their associated appointments permanently deleted from Supabase!")
+                            st.success(f"User '{user_to_delete_username}' and all associated appointments deleted successfully!")
                             st.rerun()
                         else:
-                            st.error(f"Error deleting user account: {err}")
-            else:
-                st.info("No matching user accounts found.")
+                            st.error(f"Error deleting user: {err}")
+                    else:
+                        st.error("Username not found in database.")
 
         with admin_tab4:
-            st.subheader("🩺 Create a New Doctor Account")
-            st.markdown("Add a licensed medical doctor account to the system.")
-            
-            with st.form("create_doctor_form"):
-                col_d1, col_d2 = st.columns(2)
-                with col_d1:
-                    doc_username = st.text_input("Doctor Login Username")
-                    doc_password = st.text_input("Doctor Password", type="password")
-                    doc_fullname = st.text_input("Doctor Full Name")
-                with col_d2:
-                    doc_specialty = st.text_input("Professional Role / Specialty")
-                    doc_prc = st.text_input("PRC License Number")
-                    doc_ptr = st.text_input("PTR Number")
-                
-                button_label = "Registering Doctor..." if st.session_state.is_submitting_action else "🩺 Register Doctor Account"
-                doc_reg_submit = st.form_submit_button(button_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
-                
-                if doc_reg_submit and not st.session_state.is_submitting_action:
-                    if doc_username.strip() and doc_password.strip() and doc_fullname.strip() and doc_specialty.strip():
-                        st.session_state.is_submitting_action = True
-                        with st.spinner("⏳ Creating doctor account..."):
-                            success, err = db.register_doctor(
-                                doc_username.strip(), 
-                                doc_password.strip(), 
-                                doc_fullname.strip(), 
-                                doc_specialty.strip(), 
-                                doc_prc.strip(), 
-                                doc_ptr.strip()
-                            )
-                            st.session_state.is_submitting_action = False
-                            if success:
-                                st.success(f"🎉 Doctor account '{doc_fullname}' ({doc_specialty}) created successfully!")
-                                st.rerun()
-                            else:
-                                st.error(err)
+            st.subheader("🩺 Register New Doctor Account")
+            with st.form("admin_doc_reg"):
+                doc_user = st.text_input("Doctor Username")
+                doc_pass = st.text_input("Password", type="password")
+                doc_name = st.text_input("Doctor Full Name (e.g., Dr. Juan Santos, M.D.)")
+                doc_spec = st.text_input("Professional Specialty / Role (e.g., Cardiologist)")
+                doc_prc = st.text_input("PRC License Number")
+                doc_ptr = st.text_input("PTR Number")
+                doc_submit = st.form_submit_button("Create Doctor Account")
+                if doc_submit:
+                    if doc_user and doc_pass and doc_name:
+                        success, err = db.register_doctor(doc_user, doc_pass, doc_name, doc_spec, doc_prc, doc_ptr)
+                        if success:
+                            st.success(f"Doctor account for {doc_name} created successfully!")
+                            st.rerun()
+                        else:
+                            st.error(err)
                     else:
-                        st.error("Please fill in username, password, full name, and professional specialty.")
+                        st.error("Please fill in all required fields.")
 
         with admin_tab5:
-            st.subheader("👤 Create a New Patient User Account")
-            st.markdown("Register a new patient account with a unique username handle and separate patient full name.")
-            
-            with st.form("admin_create_patient_form"):
-                new_user = st.text_input("Choose Unique Login Username")
-                new_pass = st.text_input("Choose Password", type="password")
-                new_fullname = st.text_input("Patient Full Name")
-                
-                reg_btn_label = "Creating Account..." if st.session_state.is_submitting_action else "👤 Create Patient Account"
-                reg_submit = st.form_submit_button(reg_btn_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
-                
-                if reg_submit and not st.session_state.is_submitting_action:
-                    if new_user.strip() and new_pass.strip() and new_fullname.strip():
-                        st.session_state.is_submitting_action = True
-                        with st.spinner("⏳ Creating patient user account..."):
-                            success, err = db.register_patient(new_user.strip(), new_pass.strip(), new_fullname.strip())
-                            st.session_state.is_submitting_action = False
-                            if success:
-                                st.success(f"🎉 Patient account '{new_user}' created successfully for {new_fullname}!")
-                                st.rerun()
-                            else:
-                                st.error(err)
+            st.subheader("👤 Register General User / Patient Account")
+            with st.form("admin_user_reg"):
+                u_user = st.text_input("Username Handle")
+                u_pass = st.text_input("Password", type="password")
+                u_name = st.text_input("Full Name")
+                u_submit = st.form_submit_button("Create User Account")
+                if u_submit:
+                    if u_user and u_pass and u_name:
+                        success, err = db.register_patient(u_user, u_pass, u_name)
+                        if success:
+                            st.success(f"Patient account for {u_name} created successfully!")
+                            st.rerun()
+                        else:
+                            st.error(err)
                     else:
                         st.error("Please fill in all fields.")
 
         with admin_tab6:
-            st.subheader("➕ Book Walk-In Appointment (Staff / Admin Assisted)")
-            st.markdown("For elderly patients or walk-ins who cannot use the computer themselves. Book their appointment directly into the queue.")
-            
-            with st.form("admin_walkin_booking_form"):
-                col_w1, col_w2 = st.columns(2)
-                with col_w1:
-                    walkin_username = st.text_input("Account Username Handle")
-                    walkin_patient_name = st.text_input("Patient Full Name")
-                    walkin_doctor = st.selectbox("Assign Attending Physician", doctors_list[1:], key="walkin_doc")
-                with col_w2:
-                    walkin_date = st.date_input("Preferred Date", key="walkin_date")
-                    walkin_time = st.selectbox("Exact Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], key="walkin_time")
-                    walkin_status = st.selectbox("Initial Status", ["Waiting", "Pending Payment", "Completed"], key="walkin_status")
-                
-                walkin_lbl = "Booking Appointment..." if st.session_state.is_submitting_action else "➕ Confirm & Book Walk-In Appointment"
-                walkin_submit = st.form_submit_button(walkin_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
-                
-                if walkin_submit and not st.session_state.is_submitting_action:
-                    if walkin_patient_name.strip():
-                        st.session_state.is_submitting_action = True
-                        with st.spinner("⏳ Securing walk-in booking and checking schedule conflicts..."):
-                            success, err_msg = db.add_appointment(walkin_username.strip(), walkin_patient_name.strip(), walkin_doctor, str(walkin_date), walkin_time, walkin_status)
-                            st.session_state.is_submitting_action = False
-                            if success:
-                                st.success(f"🎉 Walk-in appointment successfully booked for {walkin_patient_name.strip()} with {walkin_doctor}!")
-                                st.rerun()
-                            else:
-                                st.error(err_msg)
+            st.subheader("➕ Book Walk-In Appointment")
+            with st.form("walkin_form"):
+                wi_patient = st.text_input("Patient Full Name")
+                wi_doctor = st.selectbox("Assign Doctor", doctors_list[1:])
+                wi_date = st.date_input("Appointment Date", datetime.now())
+                wi_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"])
+                wi_submit = st.form_submit_button("Book Walk-In Appointment")
+                if wi_submit:
+                    success, err = db.add_appointment("admin", wi_patient, wi_doctor, str(wi_date), wi_time, "Waiting")
+                    if success:
+                        st.success(f"Walk-in appointment for {wi_patient} booked successfully!")
+                        st.rerun()
                     else:
-                        st.error("Please enter a valid patient full name.")
+                        st.error(err)
 
     # --- DOCTOR PORTAL ---
     elif role == "Doctor":
-        st.title("🩺 Medical Professional / Doctor Portal")
+        st.title("👨‍⚕️ Doctor's Consultation & Prescription Module")
+        st.markdown(f"Welcome, **{st.session_state.full_name}** | Review patient queues, save clinical diagnoses, prescribe medications, and print verified prescriptions.")
         
-        doc_surname = selected_doctor if selected_doctor != "All Doctors" else "Doctor Smith"
-        st.markdown(f"Welcome, **{doc_surname}**. Managing clinical treatments and patient queue.")
-        
-        doc_records = [r for r in all_records if selected_doctor == "All Doctors" or r.get("doctor_id") == selected_doctor]
-        
-        doc_tab1, doc_tab2, doc_tab3 = st.tabs([
-            "🩺 Consultation & Treatment Room", 
-            "📋 Patient Schedule Queue", 
-            "✅ Treated Patients (Pending Payment)"
-        ])
+        doc_records = db.get_all_appointments()
+        if selected_doctor != "All Doctors":
+            doc_records = [r for r in doc_records if r.get('doctor_id') == selected_doctor]
+            
+        doc_tab1, doc_tab2 = st.tabs(["📋 Assigned Patient Queue", "📝 Consultation & Prescription Desk"])
         
         with doc_tab1:
-            st.subheader("🩺 Patient Consultation & Prescription Workspace")
-            
-            if doc_records:
-                sorted_doc_records = sorted(doc_records, key=lambda x: int(x['id']))
-                patient_names_list = [f"ID #{r['id']} | Patient: {r['patient_name']} ({r['appointment_date']} {r['appointment_time']})" for r in sorted_doc_records]
-                selected_patient_str = st.selectbox("Select Patient in Consultation", patient_names_list)
-                
-                chosen_record = next((r for r in sorted_doc_records if f"ID #{r['id']} | Patient: {r['patient_name']} ({r['appointment_date']} {r['appointment_time']})" == selected_patient_str), None)
-                
-                if chosen_record:
-                    st.info(f"**Patient:** {chosen_record['patient_name']} | **Assigned Doctor:** {chosen_record['doctor_id']} | **Time Slot:** {chosen_record['appointment_date']} at {chosen_record['appointment_time']}")
-                    
-                    with st.form("consultation_form"):
-                        st.markdown("### Clinical Examination Notes")
-                        existing_diag = chosen_record.get("diagnosis") or ""
-                        existing_presc = chosen_record.get("prescription") or ""
-                        
-                        diagnosis = st.text_area("Medical Diagnosis", value=existing_diag, placeholder="Enter official diagnosis...")
-                        prescription = st.text_area("Prescription & Treatment Plan", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
-                        
-                        cons_lbl = "Saving Consultation..." if st.session_state.is_submitting_action else "💾 Save Consultation & Send to Cashier"
-                        save_consultation = st.form_submit_button(cons_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
-                        
-                        if save_consultation and not st.session_state.is_submitting_action:
-                            st.session_state.is_submitting_action = True
-                            with st.spinner("⏳ Saving clinical diagnosis and generating prescription tracking ID..."):
-                                success, err = db.update_consultation(chosen_record["id"], diagnosis, prescription, chosen_record["appointment_date"])
-                                st.session_state.is_submitting_action = False
-                                if success:
-                                    st.success(f"🎉 Consultation saved for {chosen_record['patient_name']}! Permanent tracking ID generated and patient sent to cashier.")
-                                    st.rerun()
-                                else:
-                                    st.error(f"Failed to save: {err}")
-            else:
-                st.warning("No patients available in your queue for consultation.")
-
-        with doc_tab2:
-            col1, col2 = st.columns(2)
-            col1.metric(label=f"Appointments ({selected_doctor})", value=len(doc_records))
-            col2.metric(label="Clinic Queue Status", value="Active 🟢")
-            
-            st.markdown("---")
-            st.subheader(f"🕒 Patient Schedule — {selected_doctor}")
+            st.subheader("Assigned Appointments & Queue")
             render_modern_table(doc_records)
-
-        with doc_tab3:
-            st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
             
-            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
-            if pending_records:
-                render_modern_table(pending_records)
-            else:
-                st.info(f"No patients currently waiting for payment with {selected_doctor}.")
+        with doc_tab2:
+            st.subheader("Consultation Diagnosis & Prescription Entry")
+            if doc_records:
+                sorted_doc_recs = sorted(doc_records, key=lambda x: int(x['id']))
+                rec_choices = [f"ID #{r['id']} | Patient: {r['patient_name']} | Date: {r['appointment_date']} | Status: {r['status']}" for r in sorted_doc_recs]
+                selected_rec_choice = st.selectbox("Select Patient Appointment for Consultation", rec_choices)
+                
+                sel_id = int(selected_rec_choice.split("|")[0].replace("ID:", "").replace("ID", "").replace("#", "").strip())
+                sel_rec = next((r for r in doc_records if r['id'] == sel_id), None)
+                
+                if sel_rec:
+                    with st.form("doctor_consultation_form"):
+                        st.markdown(f"### Patient: **{sel_rec['patient_name']}** (Schedule: {sel_rec['appointment_date']} at {sel_rec['appointment_time']})")
+                        
+                        diag_input = st.text_area("Clinical Diagnosis", value=sel_rec.get('diagnosis') or "")
+                        rx_input = st.text_area("Prescription / Treatment Plan", value=sel_rec.get('prescription') or "")
+                        
+                        doc_submit_btn = st.form_submit_button("Save Diagnosis & Generate Tracking Serial")
+                        
+                        if doc_submit_btn:
+                            success, err = db.update_consultation(sel_id, diag_input, rx_input, sel_rec['appointment_date'])
+                            if success:
+                                st.success(f"Consultation saved for Record #{sel_id}! Status updated to Pending Payment.")
+                                st.rerun()
+                            else:
+                                st.error(f"Error saving consultation: {err}")
+
+                    st.markdown("---")
+                    st.subheader("🖨️ Print Official Prescription Slip")
+                    
+                    prc_num_input = st.text_input("Your PRC License Number", value="1234567")
+                    ptc_num_input = st.text_input("Your PTR / Clinic Number", value="PTR-2026-988")
+                    
+                    if st.button("Print Prescription Slip Form"):
+                        serial_num = sel_rec.get('tracking_number') or f"RX-{sel_rec['appointment_date'].replace('-', '')}-{sel_id}"
+                        st.markdown("---")
+                        st.markdown(f"""
+                        <div class="prescription-card">
+                            <h2 style="text-align: center; color: #0f172a;">📄 CAREPOINT CLINIC OFFICIAL MEDICAL PRESCRIPTION</h2>
+                            <p><b>Tracking Serial:</b> `{serial_num}`</p>
+                            <p><b>Date Issued:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+                            <hr>
+                            <p><b>Patient Name:</b> {sel_rec['patient_name']}</p>
+                            <p><b>Clinical Diagnosis:</b> {sel_rec.get('diagnosis', 'Not specified')}</p>
+                            <br>
+                            <h3>Rx (Prescription Details):</h3>
+                            <p style="font-size: 16px; background: #f1f5f9; padding: 15px; border-radius: 8px;"><b>{sel_rec.get('prescription', 'No medication prescribed yet.')}</b></p>
+                            <br><br>
+                            <p><b>Attending Physician:</b> {sel_rec['doctor_id']}</p>
+                            <p><b>PRC No:</b> {prc_num_input} | <b>PTR No:</b> {ptc_num_input}</p>
+                            <br><br>
+                            <div style="float: right; text-align: center; width: 250px;">
+                                <div style="border-bottom: 1px solid #000; margin-bottom: 5px;"></div>
+                                <p style="font-size: 12px; margin: 0;"><b>Doctor's Signature over Printed Name</b><br><i>(Physical wet-ink signature required)</i></p>
+                            </div>
+                            <div style="clear: both;"></div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        st.info("💡 Present this printed prescription slip to the patient. They must proceed to the cashier/admin to settle payment or arrange a promissory note for validation.")
 
     # --- PATIENT PORTAL ---
     elif role == "Patient":
-        st.title("👤 Patient Self-Service Portal")
+        st.title("👤 Patient Portal & Appointment Manager")
+        st.markdown(f"Welcome, **{st.session_state.full_name}** | View your appointments, booking history, and prescribed treatments.")
         
-        logged_in_user_obj = next((u for u in users_list if str(u.get('username')) == str(st.session_state.username)), {})
-        my_real_full_name = logged_in_user_obj.get('full_name') or st.session_state.get('full_name') or st.session_state.username
+        target_uname = selected_active_username if st.session_state.username == "patient" else st.session_state.username
+        patient_records = db.get_patient_appointments(target_uname)
         
-        if st.session_state.username == "patient":
-            filter_username = selected_active_username
-            welcome_display_name = selected_active_username
-        else:
-            filter_username = st.session_state.username
-            welcome_display_name = my_real_full_name
-
-        st.markdown(f"Welcome, **{welcome_display_name}**.")
+        m1, m2 = st.columns(2)
+        m1.metric(label="Your Total Appointments", value=len(patient_records))
+        active_rx_count = len([r for r in patient_records if r.get("prescription")])
+        m2.metric(label="Prescriptions Issued", value=active_rx_count)
         
-        patient_records = db.get_patient_appointments(filter_username)
+        st.markdown("---")
         
-        tab1, tab2, tab3, tab4 = st.tabs([
-            "📅 Book New Appointment", 
-            "📋 My Confidential Appointments", 
-            "🧾 My Prescriptions & Receipts", 
-            "✏️ Edit My Appointments"
-        ])
+        pt_tab1, pt_tab2 = st.tabs(["📋 My Appointments & Prescriptions", "➕ Book New Appointment"])
         
-        with tab1:
-            st.subheader(f"Schedule a New Visit")
-            with st.form("booking_form"):
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    p_name = st.text_input("Patient Full Name", value=my_real_full_name)
-                    doc_choice = st.selectbox("Select Attending Physician", doctors_list[1:])
-                with col_b:
-                    app_date = st.date_input("Preferred Date")
-                    app_time = st.selectbox("Exact Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"])
-                
-                book_lbl = "Booking Appointment..." if st.session_state.is_submitting_action else "Confirm & Secure Booking"
-                book_submit = st.form_submit_button(book_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
-                
-                if book_submit and not st.session_state.is_submitting_action:
-                    if p_name.strip():
-                        st.session_state.is_submitting_action = True
-                        with st.spinner("⏳ Securing booking and checking schedule conflicts..."):
-                            success, err_msg = db.add_appointment(filter_username, p_name.strip(), doc_choice, app_date, app_time, "Waiting")
-                            st.session_state.is_submitting_action = False
-                            if success:
-                                st.success(f"🎉 Appointment successfully booked for {p_name.strip()} with {doc_choice}!")
-                                st.rerun()
-                            else:
-                                st.error(err_msg)
-                    else:
-                        st.error("Please enter a valid patient name.")
-                        
-        with tab2:
-            st.subheader(f"📋 Appointments Booked Under Your Account")
+        with pt_tab1:
+            st.subheader("Your Appointment History")
             render_modern_table(patient_records)
-
-        with tab3:
-            st.subheader("🧾 Medical Prescriptions & Receipts")
             
             if patient_records:
-                sorted_presc_records = sorted(patient_records, key=lambda x: int(x['id']))
-                presc_options = [f"ID #{r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']}" for r in sorted_presc_records]
-                selected_presc_str = st.selectbox("Select Appointment Record to View", presc_options, key="patient_presc_view_tab")
+                st.markdown("---")
+                st.subheader("📄 View Prescriptions & Payment Statuses")
+                rx_options = [f"ID #{r['id']} | Dr. {r['doctor_id']} | Date: {r['appointment_date']} | Status: {r['status']}" for r in patient_records]
+                chosen_rx_str = st.selectbox("Select Appointment to View Details", rx_options)
                 
-                sel_presc_id = int(selected_presc_str.split("|")[0].replace("ID:", "").replace("ID", "").replace("#", "").strip())
-                selected_card_rec = next((r for r in patient_records if r['id'] == sel_presc_id), None)
+                chosen_id = int(chosen_rx_str.split("|")[0].replace("ID:", "").replace("ID", "").replace("#", "").strip())
+                chosen_rec = next((r for r in patient_records if r['id'] == chosen_id), None)
                 
-                if selected_card_rec:
-                    rx_serial_number = selected_card_rec.get('tracking_number') or f"RX-PENDING-{selected_card_rec.get('id')}"
-                    pay_status_display = f"Paid via {selected_card_rec.get('payment_method')} (₱{selected_card_rec.get('payment_amount')})" if selected_card_rec.get('payment_method') else "Unpaid / Pending Payment"
-                    st.markdown(f"""
-                        <div class="prescription-card">
-                            <h3>🏥 CarePoint Official Medical Prescription & Receipt Summary</h3>
-                            <p><b>Prescription Tracking ID:</b> <span style="color: #dc2626; font-family: monospace;">{rx_serial_number}</span></p>
-                            <p><b>Appointment ID:</b> #{selected_card_rec.get('id')} | <b>Patient:</b> {selected_card_rec.get('patient_name')} | <b>Attending Doctor:</b> {selected_card_rec.get('doctor_id')}</p>
-                            <p><b>Appointment Date:</b> {selected_card_rec.get('appointment_date')} at {selected_card_rec.get('appointment_time')} | <b>Status:</b> {selected_card_rec.get('status')}</p>
-                            <p><b>Payment Status / Receipt:</b> {pay_status_display}</p>
-                            <hr style="margin: 15px 0;">
-                            <h4>Medical Diagnosis</h4>
-                            <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('diagnosis') or 'No diagnosis recorded yet.'}</p>
-                            <h4 style="margin-top: 20px;">Prescription & Treatment Plan</h4>
-                            <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('prescription') or 'No prescription issued yet.'}</p>
-                            <div style="margin-top: 30px; text-align: right;">
-                                <p><b>{selected_card_rec.get('doctor_id')}</b></p>
-                                <p style="font-size: 0.9em; color: #555;">PRC License No: 0012345 | PTR No: 9876543<br><i>Digitally Generated & Verified Serialized Form</i></p>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.info("No prescription or receipt records found.")
-
-        with tab4:
-            st.subheader(f"✏️ Reschedule, Cancel, or Delete Appointments")
-            st.markdown("*Note: Medical prescriptions and diagnoses cannot be edited by patients to preserve medical integrity.*")
-            if patient_records:
-                sorted_pat_records = sorted(patient_records, key=lambda x: int(x['id']))
-                pat_options = [f"ID #{r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']} {r['appointment_time']} | Status: {r['status']}" for r in sorted_pat_records]
-                selected_pat_rec_str = st.selectbox("Select Appointment to Modify", pat_options, key="pat_edit_select")
-                
-                sel_pat_id = int(selected_pat_rec_str.split("|")[0].replace("ID:", "").replace("ID", "").replace("#", "").strip())
-                curr_pat_rec = next((r for r in patient_records if r['id'] == sel_pat_id), None)
-                
-                if curr_pat_rec:
-                    with st.form("patient_self_edit_form"):
-                        col_p1, col_p2 = st.columns(2)
-                        with col_p1:
-                            edit_p_name = st.text_input("Patient Full Name", value=curr_pat_rec['patient_name'])
-                            edit_p_doc = st.selectbox("Attending Physician", doctors_list[1:], index=doctors_list[1:].index(curr_pat_rec['doctor_id']) if curr_pat_rec['doctor_id'] in doctors_list[1:] else 0)
-                            edit_p_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=curr_pat_rec['appointment_date'])
-                        with col_p2:
-                            edit_p_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(curr_pat_rec['appointment_time']) if curr_pat_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
-                            edit_p_status = st.selectbox("Status", ["Waiting", "Cancelled"], index=["Waiting", "Cancelled"].index(curr_pat_rec['status']) if curr_pat_rec['status'] in ["Waiting", "Cancelled"] else 0)
+                if chosen_rec:
+                    st.info(f"**Tracking Serial:** `{chosen_rec.get('tracking_number', 'Pending')}`\n\n"
+                            f"**Status / Clearance:** `{chosen_rec['status']}`\n\n"
+                            f"**Diagnosis:** {chosen_rec.get('diagnosis', 'Pending evaluation')}\n\n"
+                            f"**Prescription:** {chosen_rec.get('prescription', 'No prescription issued yet.')}")
+                    
+                    if chosen_rec['status'] in ["Completed", "Promissory Note"]:
+                        st.success(f"✅ Transaction verified by Cashier ({chosen_rec['status']}). Official receipt unlocked.")
+                    else:
+                        st.warning("⚠️ Payment or promissory note clearance pending with cashier.")
                         
-                        col_pb1, col_pb2, col_pb3 = st.columns(3)
-                        save_lbl = "Saving..." if st.session_state.is_submitting_action else "💾 Save"
-                        canc_lbl = "Cancelling..." if st.session_state.is_submitting_action else "❌ Cancel"
-                        del_lbl = "Deleting..." if st.session_state.is_submitting_action else "🗑️ Delete"
-                        
-                        save_p_edit = col_pb1.form_submit_button(save_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
-                        cancel_p_booking = col_pb2.form_submit_button(canc_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
-                        delete_p_booking = col_pb3.form_submit_button(del_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
-                        
-                        if save_p_edit and not st.session_state.is_submitting_action:
-                            st.session_state.is_submitting_action = True
-                            with st.spinner("⏳ Updating appointment..."):
-                                success, err = db.update_appointment_patient(sel_pat_id, filter_username, edit_p_name, edit_p_doc, edit_p_date, edit_p_time, edit_p_status)
-                                st.session_state.is_submitting_action = False
-                                if success:
-                                    st.success(f"Appointment #{sel_pat_id} updated successfully!")
-                                    st.rerun()
-                                else:
-                                    st.error(f"Error: {err}")
-                                    
-                        if cancel_p_booking and not st.session_state.is_submitting_action:
-                            st.session_state.is_submitting_action = True
-                            with st.spinner("⏳ Cancelling appointment..."):
-                                success, err = db.update_appointment_patient(sel_pat_id, filter_username, edit_p_name, curr_pat_rec['doctor_id'], curr_pat_rec['appointment_date'], curr_pat_rec['appointment_time'], "Cancelled")
-                                st.session_state.is_submitting_action = False
-                                if success:
-                                    st.warning(f"Appointment #{sel_pat_id} has been cancelled.")
-                                    st.rerun()
-                                else:
-                                    st.error(f"Error: {err}")
-
-                        if delete_p_booking and not st.session_state.is_submitting_action:
-                            st.session_state.is_submitting_action = True
-                            with st.spinner("⏳ Deleting appointment..."):
-                                try:
-                                    db.supabase.table("appointments").delete().eq("id", sel_pat_id).execute()
-                                    st.session_state.is_submitting_action = False
-                                    st.success(f"Appointment #{sel_pat_id} permanently deleted!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.session_state.is_submitting_action = False
-                                    st.error(f"Error deleting record: {e}")
-            else:
-                st.info(f"No appointments found under your account.")
+        with pt_tab2:
+            st.subheader("Book a New Consultation Appointment")
+            with st.form("patient_booking_form"):
+                p_name_input = st.text_input("Patient Full Name", value=st.session_state.full_name)
+                doc_choice = st.selectbox("Select Doctor", doctors_list[1:])
+                date_choice = st.date_input("Appointment Date", datetime.now() + timedelta(days=1))
+                time_choice = st.selectbox("Preferred Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"])
+                
+                book_submit = st.form_submit_button("Submit Appointment Booking")
+                if book_submit:
+                    success, err = db.add_appointment(st.session_state.username, p_name_input, doc_choice, str(date_choice), time_choice, "Waiting")
+                    if success:
+                        st.success("Appointment booked successfully! Our clinic staff will review your slot.")
+                        st.rerun()
+                    else:
+                        st.error(err)
 
 if __name__ == "__main__":
     main()
