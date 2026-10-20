@@ -916,7 +916,7 @@ def main():
                         
                         patient_complaint = st.text_area("Patient Complaint / Chief Complaint", value=existing_complaint, placeholder="Enter patient's reported symptoms or complaint...")
                         diagnosis = st.text_area("Medical Diagnosis", value=existing_diag, placeholder="Enter official diagnosis...")
-                        prescription = st.text_area("Prescription & Treatment Plan", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
+                        prescription = st.text_area("Prescription & Treatment Plan (Supports multi-line medicines)", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
                         
                         cons_lbl = "Saving Consultation..." if st.session_state.is_submitting_action else "💾 Save Consultation & Send to Cashier"
                         save_consultation = st.form_submit_button(cons_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
@@ -941,6 +941,7 @@ def main():
                         secure_prc = st.session_state.get('prc_number', '1234567')
                         secure_ptr = st.session_state.get('ptr_number', 'PTR-2026-988')
                         
+                        # Replaces regular newlines with HTML line breaks so multi-line prescriptions render cleanly
                         raw_prescription_text = chosen_record.get('prescription', 'No medication prescribed yet.')
                         formatted_prescription_html = raw_prescription_text.replace('\n', '<br>')
                         
@@ -996,4 +997,216 @@ def main():
                                 <p style="margin: 5px 0; font-size: 13px;"><b>Attending Physician:</b> {chosen_record['doctor_id']}</p>
                                 <p style="margin: 5px 0 20px 0; font-size: 13px;"><b>PRC No:</b> {secure_prc} | <b>PTR No:</b> {secure_ptr}</p>
                                 
-                                <table style="width: 10
+                                <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                                    <tr>
+                                        <td style="width: 55%; vertical-align: top; padding-right: 15px;">
+                                            <div class="warning-box">
+                                                ⚠️ <b>NOTICE:</b> This prescription is VOID and invalid at any pharmacy unless officially stamped and cleared by the CarePoint Clinic Cashier.
+                                            </div>
+                                        </td>
+                                        <td style="width: 45%; vertical-align: bottom; text-align: center;">
+                                            <div style="border-bottom: 1px solid #000; margin-bottom: 5px; width: 100%;"></div>
+                                            <p style="font-size: 11px; margin: 0;"><b>Doctor's Signature over Printed Name</b><br><i>(Physical wet-ink signature required)</i></p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <script>
+                                window.onload = function() {{
+                                    window.print();
+                                }};
+                            </script>
+                        </body>
+                        </html>
+                        """
+                        
+                        import streamlit.components.v1 as components
+                        # Dynamic height sizing based on text length to prevent clipping or scrolling inside the preview
+                        preview_height = max(500, 300 + (len(raw_prescription_text.split('\n')) * 25))
+                        components.html(prescription_html, height=preview_height)
+                        
+                        st.success("🖨️ Print dialog opened! Prescription slip dynamically resized for multiple medications.")
+            else:
+                st.warning("No patients available in your queue for consultation.")
+
+        with doc_tab2:
+            col1, col2 = st.columns(2)
+            col1.metric(label=f"Appointments ({selected_doctor})", value=len(doc_records))
+            col2.metric(label="Clinic Queue Status", value="Active 🟢")
+            
+            st.markdown("---")
+            st.subheader(f"🕒 Patient Schedule — {selected_doctor}")
+            render_modern_table(doc_records)
+
+        with doc_tab3:
+            st.subheader(f"💵 Treated Patients Awaiting Payment — {selected_doctor}")
+            
+            pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
+            if pending_records:
+                render_modern_table(pending_records)
+            else:
+                st.info(f"No patients currently waiting for payment with {selected_doctor}.")
+
+    # --- PATIENT PORTAL ---
+    elif role == "Patient":
+        st.title("👤 Patient Self-Service Portal")
+        
+        logged_in_user_obj = next((u for u in users_list if str(u.get('username')) == str(st.session_state.username)), {})
+        my_real_full_name = logged_in_user_obj.get('full_name') or st.session_state.get('full_name') or st.session_state.username
+        
+        if st.session_state.username == "patient":
+            filter_username = selected_active_username
+            welcome_display_name = selected_active_username
+        else:
+            filter_username = st.session_state.username
+            welcome_display_name = my_real_full_name
+
+        st.markdown(f"Welcome, **{welcome_display_name}**.")
+        
+        patient_records = db.get_patient_appointments(filter_username)
+        
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📅 Book New Appointment", 
+            "📋 My Confidential Appointments", 
+            "🧾 My Prescriptions & Receipts", 
+            "✏️ Edit My Appointments"
+        ])
+        
+        with tab1:
+            st.subheader(f"Schedule a New Visit")
+            with st.form("booking_form"):
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    p_name = st.text_input("Patient Full Name", value=my_real_full_name)
+                    doc_choice = st.selectbox("Select Attending Physician", doctors_list[1:])
+                with col_b:
+                    app_date = st.date_input("Preferred Date")
+                    app_time = st.selectbox("Exact Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"])
+                
+                book_lbl = "Booking Appointment..." if st.session_state.is_submitting_action else "Confirm & Secure Booking"
+                book_submit = st.form_submit_button(book_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                
+                if book_submit and not st.session_state.is_submitting_action:
+                    if p_name.strip():
+                        st.session_state.is_submitting_action = True
+                        with st.spinner("⏳ Securing booking and checking schedule conflicts..."):
+                            success, err_msg = db.add_appointment(filter_username, p_name.strip(), doc_choice, app_date, app_time, "Waiting")
+                            st.session_state.is_submitting_action = False
+                            if success:
+                                st.success(f"🎉 Appointment successfully booked for {p_name.strip()} with {doc_choice}!")
+                                st.rerun()
+                            else:
+                                st.error(err_msg)
+                    else:
+                        st.error("Please enter a valid patient name.")
+                        
+        with tab2:
+            st.subheader(f"📋 Appointments Booked Under Your Account")
+            render_modern_table(patient_records)
+
+        with tab3:
+            st.subheader("🧾 Medical Prescriptions & Receipts")
+            
+            if patient_records:
+                sorted_presc_records = sorted(patient_records, key=lambda x: int(x['id']))
+                presc_options = [f"ID #{r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']}" for r in sorted_presc_records]
+                selected_presc_str = st.selectbox("Select Appointment Record to View", presc_options, key="patient_presc_view_tab")
+                
+                sel_presc_id = int(selected_presc_str.split("|")[0].replace("ID:", "").replace("ID", "").replace("#", "").strip())
+                selected_card_rec = next((r for r in patient_records if r['id'] == sel_presc_id), None)
+                
+                if selected_card_rec:
+                    rx_serial_number = selected_card_rec.get('tracking_number') or f"RX-PENDING-{selected_card_rec.get('id')}"
+                    pay_status_display = f"Paid via {selected_card_rec.get('payment_method')} (₱{selected_card_rec.get('payment_amount')})" if selected_card_rec.get('payment_method') else "Unpaid / Pending Payment"
+                    st.markdown(f"""
+                        <div class="prescription-card">
+                            <h3>🏥 CarePoint Official Medical Prescription & Receipt Summary</h3>
+                            <p><b>Prescription Tracking ID:</b> <span style="color: #dc2626; font-family: monospace;">{rx_serial_number}</span></p>
+                            <p><b>Appointment ID:</b> #{selected_card_rec.get('id')} | <b>Patient:</b> {selected_card_rec.get('patient_name')} | <b>Attending Doctor:</b> {selected_card_rec.get('doctor_id')}</p>
+                            <p><b>Appointment Date:</b> {selected_card_rec.get('appointment_date')} at {selected_card_rec.get('appointment_time')} | <b>Status:</b> {selected_card_rec.get('status')}</p>
+                            <p><b>Payment Status / Receipt:</b> {pay_status_display}</p>
+                            <hr style="margin: 15px 0;">
+                            <h4>Patient Complaint</h4>
+                            <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('patient_complaint') or 'No complaint recorded yet.'}</p>
+                            <h4 style="margin-top: 15px;">Medical Diagnosis</h4>
+                            <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('diagnosis') or 'No diagnosis recorded yet.'}</p>
+                            <h4 style="margin-top: 20px;">Prescription & Treatment Plan</h4>
+                            <p style="background: #f1f5f9; padding: 12px; border-radius: 8px; white-space: pre-line;">{selected_card_rec.get('prescription') or 'No prescription issued yet.'}</p>
+                            <div style="margin-top: 30px; text-align: right;">
+                                <p><b>{selected_card_rec.get('doctor_id')}</b></p>
+                                <p style="font-size: 0.9em; color: #555;">PRC License No: 0012345 | PTR No: 9876543<br><i>Digitally Generated & Verified Serialized Form</i></p>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("No prescription or receipt records found.")
+
+        with tab4:
+            st.subheader(f"✏️ Reschedule, Cancel, or Delete Appointments")
+            st.markdown("*Note: Medical prescriptions and diagnoses cannot be edited by patients to preserve medical integrity.*")
+            if patient_records:
+                sorted_pat_records = sorted(patient_records, key=lambda x: int(x['id']))
+                pat_options = [f"ID #{r['id']} | Patient: {r['patient_name']} | Dr: {r['doctor_id']} | Date: {r['appointment_date']} {r['appointment_time']} | Status: {r['status']}" for r in sorted_pat_records]
+                selected_pat_rec_str = st.selectbox("Select Appointment to Modify", pat_options, key="pat_edit_select")
+                
+                sel_pat_id = int(selected_pat_rec_str.split("|")[0].replace("ID:", "").replace("ID", "").replace("#", "").strip())
+                curr_pat_rec = next((r for r in patient_records if r['id'] == sel_pat_id), None)
+                
+                if curr_pat_rec:
+                    with st.form("patient_self_edit_form"):
+                        col_p1, col_p2 = st.columns(2)
+                        with col_p1:
+                            edit_p_name = st.text_input("Patient Full Name", value=curr_pat_rec['patient_name'])
+                            edit_p_doc = st.selectbox("Attending Physician", doctors_list[1:], index=doctors_list[1:].index(curr_pat_rec['doctor_id']) if curr_pat_rec['doctor_id'] in doctors_list[1:] else 0)
+                            edit_p_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=curr_pat_rec['appointment_date'])
+                        with col_p2:
+                            edit_p_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(curr_pat_rec['appointment_time']) if curr_pat_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
+                            edit_p_status = st.selectbox("Status", ["Waiting", "Cancelled"], index=["Waiting", "Cancelled"].index(curr_pat_rec['status']) if curr_pat_rec['status'] in ["Waiting", "Cancelled"] else 0)
+                        
+                        col_pb1, col_pb2, col_pb3 = st.columns(3)
+                        save_lbl = "Saving..." if st.session_state.is_submitting_action else "💾 Save"
+                        canc_lbl = "Cancelling..." if st.session_state.is_submitting_action else "❌ Cancel"
+                        del_lbl = "Deleting..." if st.session_state.is_submitting_action else "🗑️ Delete"
+                        
+                        save_p_edit = col_pb1.form_submit_button(save_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                        cancel_p_booking = col_pb2.form_submit_button(canc_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                        delete_p_booking = col_pb3.form_submit_button(del_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                        
+                        if save_p_edit and not st.session_state.is_submitting_action:
+                            st.session_state.is_submitting_action = True
+                            with st.spinner("⏳ Updating appointment..."):
+                                success, err = db.update_appointment_patient(sel_pat_id, filter_username, edit_p_name, edit_p_doc, edit_p_date, edit_p_time, edit_p_status)
+                                st.session_state.is_submitting_action = False
+                                if success:
+                                    st.success(f"Appointment #{sel_pat_id} updated successfully!")
+                                    st.rerun()
+                                else:
+                                    st.error(f"Error: {err}")
+                                    
+                        if cancel_p_booking and not st.session_state.is_submitting_action:
+                            st.session_state.is_submitting_action = True
+                            with st.spinner("⏳ Cancelling appointment..."):
+                                success, err = db.update_appointment_patient(sel_pat_id, filter_username, edit_p_name, curr_pat_rec['doctor_id'], curr_pat_rec['appointment_date'], curr_pat_rec['appointment_time'], "Cancelled")
+                                st.session_state.is_submitting_action = False
+                                if success:
+                                    st.warning(f"Appointment #{sel_pat_id} has been cancelled.")
+                                    st.rerun()
+                                else:
+                                    st.error(f"Error: {err}")
+
+                        if delete_p_booking and not st.session_state.is_submitting_action:
+                            st.session_state.is_submitting_action = True
+                            with st.spinner("⏳ Deleting appointment..."):
+                                try:
+                                    db.supabase.table("appointments").delete().eq("id", sel_pat_id).execute()
+                                    st.session_state.is_submitting_action = False
+                                    st.success(f"Appointment #{sel_pat_id} permanently deleted!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.session_state.is_submitting_action = False
+                                    st.error(f"Error deleting record: {e}")
+            else:
+                st.info(f"No appointments found under your account.")
+
+if __name__ == "__main__":
+    main()
