@@ -180,13 +180,14 @@ class DatabaseManager:
         except Exception as e:
             return False, str(e)
 
-    def update_consultation(self, record_id, diagnosis, prescription, appointment_date):
-        """Strictly reserved for Doctors: updates appointment with diagnosis, prescription, and generates a permanent tracking serial number"""
+    def update_consultation(self, record_id, chief_complaint, diagnosis, prescription, appointment_date):
+        """Strictly reserved for Doctors: updates appointment with chief complaint, diagnosis, prescription, and tracking serial number"""
         try:
             date_str = str(appointment_date).replace("-", "")
             tracking_num = f"RX-{date_str}-{record_id}"
             
             self.supabase.table("appointments").update({
+                "chief_complaint": chief_complaint,
                 "diagnosis": diagnosis,
                 "prescription": prescription,
                 "tracking_number": tracking_num,
@@ -196,6 +197,7 @@ class DatabaseManager:
         except Exception as e:
             try:
                 self.supabase.table("appointments").update({
+                    "chief_complaint": chief_complaint,
                     "diagnosis": diagnosis,
                     "prescription": prescription,
                     "status": "Pending Payment"
@@ -254,6 +256,7 @@ class DatabaseManager:
                             "appointment_date": appointment_date,
                             "appointment_time": appointment_time,
                             "status": status,
+                            "chief_complaint": "General body malaise and recurring headache." if status in ["Completed", "Pending Payment"] else None,
                             "diagnosis": "Routine checkup and clinical evaluation normal." if status in ["Completed", "Pending Payment"] else None,
                             "prescription": "Paracetamol 500mg every 4 hours as needed." if status in ["Completed", "Pending Payment"] else None,
                             "tracking_number": tracking_num,
@@ -298,7 +301,7 @@ def render_modern_table(records):
     import pandas as pd
     df = pd.DataFrame(records)
     
-    cols_order = [c for c in ['id', 'patient_name', 'doctor_id', 'appointment_date', 'appointment_time', 'status', 'tracking_number', 'payment_method', 'payment_amount', 'diagnosis', 'prescription'] if c in df.columns]
+    cols_order = [c for c in ['id', 'patient_name', 'doctor_id', 'appointment_date', 'appointment_time', 'status', 'tracking_number', 'payment_method', 'payment_amount', 'chief_complaint', 'diagnosis', 'prescription'] if c in df.columns]
     df = df[cols_order]
 
     st.dataframe(
@@ -319,6 +322,7 @@ def render_modern_table(records):
             "tracking_number": st.column_config.TextColumn("Tracking ID"),
             "payment_method": st.column_config.TextColumn("Payment Method"),
             "payment_amount": st.column_config.TextColumn("Amount Paid"),
+            "chief_complaint": st.column_config.TextColumn("Chief Complaint"),
             "diagnosis": st.column_config.TextColumn("Diagnosis"),
             "prescription": st.column_config.TextColumn("Prescription")
         }
@@ -574,7 +578,7 @@ def main():
                     with st.form("admin_cashier_form"):
                         st.markdown(f"### 💳 Checkout & Verification for Patient: **{current_rec['patient_name']}** (ID #{current_rec['id']})")
                         
-                        # --- CASHIER SECURE VIEW (Prescription & Appointment info ONLY, No Diagnosis) ---
+                        # --- CASHIER SECURE VIEW (Prescription & Appointment info ONLY, Symptoms & Diagnosis Hidden) ---
                         st.markdown("---")
                         st.markdown("#### 📄 Authenticated Appointment & Prescription Details (Cashier View)")
                         rx_serial = current_rec.get('tracking_number') or f"RX-PENDING-{current_rec.get('id')}"
@@ -828,10 +832,11 @@ def main():
                     
                     with st.form("consultation_form"):
                         st.markdown("### Clinical Examination Notes")
+                        existing_chief = chosen_record.get("chief_complaint") or ""
                         existing_diag = chosen_record.get("diagnosis") or ""
                         existing_presc = chosen_record.get("prescription") or ""
                         
-                        chief_complaint = st.text_area("Chief Complaint / Symptoms", placeholder="Enter patient's symptoms...")
+                        chief_complaint = st.text_area("Chief Complaint / Symptoms", value=existing_chief, placeholder="Enter patient's symptoms...")
                         diagnosis = st.text_area("Medical Diagnosis", value=existing_diag, placeholder="Enter official diagnosis...")
                         prescription = st.text_area("Prescription & Treatment Plan", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
                         
@@ -841,7 +846,7 @@ def main():
                         if save_consultation and not st.session_state.is_submitting_action:
                             st.session_state.is_submitting_action = True
                             with st.spinner("⏳ Saving clinical diagnosis and generating prescription tracking ID..."):
-                                success, err = db.update_consultation(chosen_record["id"], diagnosis, prescription, chosen_record["appointment_date"])
+                                success, err = db.update_consultation(chosen_record["id"], chief_complaint, diagnosis, prescription, chosen_record["appointment_date"])
                                 st.session_state.is_submitting_action = False
                                 if success:
                                     st.success(f"🎉 Consultation saved for {chosen_record['patient_name']}! Permanent tracking ID generated and patient sent to cashier.")
@@ -942,7 +947,9 @@ def main():
                             <p><b>Appointment Date:</b> {selected_card_rec.get('appointment_date')} at {selected_card_rec.get('appointment_time')} | <b>Status:</b> {selected_card_rec.get('status')}</p>
                             <p><b>Payment Status:</b> {pay_status_display}</p>
                             <hr style="margin: 15px 0;">
-                            <h4>Medical Diagnosis</h4>
+                            <h4>Chief Complaint / Symptoms</h4>
+                            <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('chief_complaint') or 'No chief complaint recorded yet.'}</p>
+                            <h4 style="margin-top: 15px;">Medical Diagnosis</h4>
                             <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('diagnosis') or 'No diagnosis recorded yet.'}</p>
                             <h4 style="margin-top: 20px;">Prescription & Treatment Plan</h4>
                             <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('prescription') or 'No prescription issued yet.'}</p>
