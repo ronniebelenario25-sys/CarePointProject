@@ -580,7 +580,7 @@ def main():
                 
         with admin_tab2:
             st.subheader("💵 Cashier Payment Verification & Checkout Desk")
-            st.markdown("Process consultation payments and print official receipts or prescriptions separately.")
+            st.markdown("Process consultation payments and print official payment receipts directly.")
             
             if records:
                 sorted_records = sorted(records, key=lambda x: int(x['id']))
@@ -655,18 +655,76 @@ def main():
                                     st.session_state.is_submitting_action = False
                                     st.error(f"Error deleting record: {e}")
                     
-                    # --- ADMIN / CASHIER SEPARATE PRINTING BUTTONS ---
+                    # --- ADMIN / CASHIER DIRECT RECEIPT PRINTING STATION ---
                     st.markdown("---")
-                    st.markdown("### 🖨️ Admin Document Printing Station (Separate Papers)")
-                    print_col1, print_col2 = st.columns(2)
+                    st.markdown("### 🖨️ Admin Payment Receipt Printing Station")
                     
-                    with print_col1:
-                        if st.button("🖨️ Print Official Receipt (Paper 1)", use_container_width=True):
-                            st.success(f"📄 Official Receipt sent to printer for Patient: **{current_rec['patient_name']}** | Amount: **₱{current_rec.get('payment_amount', '500.00')}** | Method: **{current_rec.get('payment_method', 'Cash')}**")
-                    
-                    with print_col2:
-                        if st.button("🖨️ Print Medical Prescription (Paper 2)", use_container_width=True):
-                            st.success(f"💊 Medical Prescription sent to printer for Tracking ID: **{rx_serial}** (Doctor: {current_rec['doctor_id']})")
+                    if st.button("🖨️ Print Official Payment Receipt Form", use_container_width=True):
+                        receipt_html = f"""
+                        <html>
+                        <head>
+                            <style>
+                                @page {{
+                                    size: auto;
+                                    margin: 0mm;
+                                }}
+                                body {{
+                                    font-family: Arial, sans-serif;
+                                    padding: 40px;
+                                    color: #000;
+                                    background: #fff;
+                                    margin: 0;
+                                }}
+                                .receipt-card {{
+                                    background: #ffffff;
+                                    border: 2px solid #0f172a;
+                                    padding: 35px;
+                                    border-radius: 12px;
+                                    max-width: 800px;
+                                    margin: auto;
+                                }}
+                                @media print {{
+                                    body {{ padding: 20px; }}
+                                    header, footer, .stToolbar {{ display: none !important; }}
+                                }}
+                            </style>
+                        </head>
+                        <body>
+                            <div class="receipt-card">
+                                <h2 style="text-align: center; color: #0f172a; margin-top: 0;">🧾 CAREPOINT CLINIC OFFICIAL PAYMENT RECEIPT</h2>
+                                <p><b>Transaction Reference:</b> <code>RCP-{current_rec['id']}-{datetime.now().strftime('%Y%m%d')}</code></p>
+                                <p><b>Date Issued:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+                                <hr>
+                                <p><b>Patient Name:</b> {current_rec['patient_name']}</p>
+                                <p><b>Attending Physician:</b> {current_rec['doctor_id']}</p>
+                                <p><b>Appointment Schedule:</b> {current_rec['appointment_date']} at {current_rec['appointment_time']}</p>
+                                <br>
+                                <h3>Payment Breakdown:</h3>
+                                <p style="font-size: 16px; background: #f1f5f9; padding: 15px; border-radius: 8px;">
+                                    <b>Consultation Fee / Total Paid:</b> ₱{current_rec.get('payment_amount', '500.00')}<br>
+                                    <b>Payment Method:</b> {current_rec.get('payment_method', 'Cash')}<br>
+                                    <b>Status:</b> Completed & Verified
+                                </p>
+                                <br><br><br>
+                                <div style="float: right; text-align: center; width: 280px;">
+                                    <div style="border-bottom: 1px solid #000; margin-bottom: 5px;"></div>
+                                    <p style="font-size: 12px; margin: 0;"><b>Authorized Cashier Signature</b><br><i>(CarePoint Cashier Desk)</i></p>
+                                </div>
+                                <div style="clear: both;"></div>
+                            </div>
+                            <script>
+                                window.onload = function() {{
+                                    window.print();
+                                }};
+                            </script>
+                        </body>
+                        </html>
+                        """
+                        
+                        import streamlit.components.v1 as components
+                        components.html(receipt_html, height=650)
+                        
+                        st.success(f"🖨️ Print dialog opened for Official Receipt (Patient: **{current_rec['patient_name']}** | Amount: **₱{current_rec.get('payment_amount', '500.00')}**).")
             else:
                 st.warning("No records available to edit.")
 
