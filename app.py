@@ -262,7 +262,7 @@ class DatabaseManager:
                             "status": status,
                             "patient_complaint": "Persistent headache and mild fatigue for 3 days." if status in ["Completed", "Pending Payment"] else None,
                             "diagnosis": "Routine checkup and clinical evaluation normal." if status in ["Completed", "Pending Payment"] else None,
-                            "prescription": "Paracetamol 500mg every 4 hours as needed." if status in ["Completed", "Pending Payment"] else None,
+                            "prescription": "1. Paracetamol 500mg 1 tab every 4 hours\n2. Amoxicillin 500mg 1 cap 3x a day for 7 days\n3. Cetirizine 10mg 1 tab once a day at bedtime" if status in ["Completed", "Pending Payment"] else None,
                             "tracking_number": tracking_num,
                             "payment_method": "Cash" if status == "Completed" else None,
                             "payment_amount": "500.00" if status == "Completed" else None
@@ -916,7 +916,7 @@ def main():
                         
                         patient_complaint = st.text_area("Patient Complaint / Chief Complaint", value=existing_complaint, placeholder="Enter patient's reported symptoms or complaint...")
                         diagnosis = st.text_area("Medical Diagnosis", value=existing_diag, placeholder="Enter official diagnosis...")
-                        prescription = st.text_area("Prescription & Treatment Plan", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
+                        prescription = st.text_area("Prescription & Treatment Plan (Supports multi-line medicines)", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
                         
                         cons_lbl = "Saving Consultation..." if st.session_state.is_submitting_action else "💾 Save Consultation & Send to Cashier"
                         save_consultation = st.form_submit_button(cons_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
@@ -932,7 +932,7 @@ def main():
                                 else:
                                     st.error(f"Failed to save: {err}")
 
-                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (FIXED LAYOUT & NOTICE PLACED BESIDE SIGNATURE) ---
+                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (DYNAMIC RESIZING & MULTI-MEDICINE SUPPORT) ---
                     st.markdown("---")
                     st.subheader("🖨️ Print Official Prescription Slip")
                     
@@ -941,17 +941,21 @@ def main():
                         secure_prc = st.session_state.get('prc_number', '1234567')
                         secure_ptr = st.session_state.get('ptr_number', 'PTR-2026-988')
                         
+                        # Replaces regular newlines with HTML line breaks so multi-line prescriptions render cleanly
+                        raw_prescription_text = chosen_record.get('prescription', 'No medication prescribed yet.')
+                        formatted_prescription_html = raw_prescription_text.replace('\n', '<br>')
+                        
                         prescription_html = f"""
                         <html>
                         <head>
                             <style>
                                 @page {{
                                     size: auto;
-                                    margin: 0mm;
+                                    margin: 10mm;
                                 }}
                                 body {{
                                     font-family: Arial, sans-serif;
-                                    padding: 20px;
+                                    padding: 10px;
                                     color: #000;
                                     background: #fff;
                                     margin: 0;
@@ -959,8 +963,8 @@ def main():
                                 .prescription-card {{
                                     background: #ffffff;
                                     border: 2px solid #0f172a;
-                                    padding: 25px;
-                                    border-radius: 12px;
+                                    padding: 20px;
+                                    border-radius: 10px;
                                     max-width: 700px;
                                     width: 100%;
                                     box-sizing: border-box;
@@ -976,7 +980,7 @@ def main():
                                     line-height: 1.3;
                                 }}
                                 @media print {{
-                                    body {{ padding: 10px; }}
+                                    body {{ padding: 0; }}
                                     header, footer, .stToolbar {{ display: none !important; }}
                                 }}
                             </style>
@@ -988,7 +992,7 @@ def main():
                                 <hr style="margin: 10px 0;">
                                 <p style="margin: 5px 0; font-size: 14px;"><b>Patient Name:</b> {chosen_record['patient_name']}</p>
                                 <h3 style="margin: 15px 0 5px 0; font-size: 14px;">Rx (Prescription & Treatment Plan):</h3>
-                                <p style="font-size: 14px; background: #f1f5f9; padding: 12px; border-radius: 6px; margin: 0 0 20px 0;"><b>{chosen_record.get('prescription', 'No medication prescribed yet.')}</b></p>
+                                <div style="font-size: 14px; background: #f1f5f9; padding: 12px; border-radius: 6px; margin: 0 0 20px 0; line-height: 1.5; white-space: pre-line;"><b>{formatted_prescription_html}</b></div>
                                 
                                 <p style="margin: 5px 0; font-size: 13px;"><b>Attending Physician:</b> {chosen_record['doctor_id']}</p>
                                 <p style="margin: 5px 0 20px 0; font-size: 13px;"><b>PRC No:</b> {secure_prc} | <b>PTR No:</b> {secure_ptr}</p>
@@ -1017,9 +1021,11 @@ def main():
                         """
                         
                         import streamlit.components.v1 as components
-                        components.html(prescription_html, height=550)
+                        # Dynamic height sizing based on text length to prevent clipping or scrolling inside the preview
+                        preview_height = max(500, 300 + (len(raw_prescription_text.split('\n')) * 25))
+                        components.html(prescription_html, height=preview_height)
                         
-                        st.success("🖨️ Print dialog opened! Prescription slip formatted to fit a single page cleanly.")
+                        st.success("🖨️ Print dialog opened! Prescription slip dynamically resized for multiple medications.")
             else:
                 st.warning("No patients available in your queue for consultation.")
 
@@ -1125,7 +1131,7 @@ def main():
                             <h4 style="margin-top: 15px;">Medical Diagnosis</h4>
                             <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('diagnosis') or 'No diagnosis recorded yet.'}</p>
                             <h4 style="margin-top: 20px;">Prescription & Treatment Plan</h4>
-                            <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('prescription') or 'No prescription issued yet.'}</p>
+                            <p style="background: #f1f5f9; padding: 12px; border-radius: 8px; white-space: pre-line;">{selected_card_rec.get('prescription') or 'No prescription issued yet.'}</p>
                             <div style="margin-top: 30px; text-align: right;">
                                 <p><b>{selected_card_rec.get('doctor_id')}</b></p>
                                 <p style="font-size: 0.9em; color: #555;">PRC License No: 0012345 | PTR No: 9876543<br><i>Digitally Generated & Verified Serialized Form</i></p>
