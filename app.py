@@ -889,7 +889,7 @@ def main():
         tab1, tab2, tab3, tab4 = st.tabs([
             "📅 Book New Appointment", 
             "📋 My Confidential Appointments", 
-            "🧾 My Prescriptions & Receipts (Read-Only)", 
+            "🧾 My Prescriptions & Receipts", 
             "✏️ Edit My Appointments"
         ])
         
@@ -926,8 +926,7 @@ def main():
             render_modern_table(patient_records)
 
         with tab3:
-            st.subheader("🧾 Read-Only Medical Prescriptions & Receipts")
-            st.markdown("🔒 *Secure Record View: Prescriptions and payment receipts are digitally verified and locked against tampering.*")
+            st.subheader("🧾 Medical Prescriptions & Receipts")
             
             if patient_records:
                 sorted_presc_records = sorted(patient_records, key=lambda x: int(x['id']))
@@ -948,9 +947,9 @@ def main():
                             <p><b>Appointment Date:</b> {selected_card_rec.get('appointment_date')} at {selected_card_rec.get('appointment_time')} | <b>Status:</b> {selected_card_rec.get('status')}</p>
                             <p><b>Payment Status / Receipt:</b> {pay_status_display}</p>
                             <hr style="margin: 15px 0;">
-                            <h4>Medical Diagnosis (Read-Only)</h4>
+                            <h4>Medical Diagnosis</h4>
                             <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('diagnosis') or 'No diagnosis recorded yet.'}</p>
-                            <h4 style="margin-top: 20px;">Prescription & Treatment Plan (Read-Only)</h4>
+                            <h4 style="margin-top: 20px;">Prescription & Treatment Plan</h4>
                             <p style="background: #f1f5f9; padding: 12px; border-radius: 8px;">{selected_card_rec.get('prescription') or 'No prescription issued yet.'}</p>
                             <div style="margin-top: 30px; text-align: right;">
                                 <p><b>{selected_card_rec.get('doctor_id')}</b></p>
