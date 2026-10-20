@@ -864,10 +864,9 @@ def main():
                                 else:
                                     st.error(f"Failed to save: {err}")
 
-                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (SECURE DATABASE-LOCKED CREDENTIALS) ---
+                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (CLEAN UI) ---
                     st.markdown("---")
                     st.subheader("🖨️ Print Official Prescription Slip")
-                    st.info(f"🔒 **Verified Database Credentials (Tamper-Proof):** PRC License No: `{st.session_state.get('prc_number', '1234567')}` | PTR No: `{st.session_state.get('ptr_number', 'PTR-2026-988')}`")
                     
                     if st.button("🖨️ Print Prescription Slip Form", use_container_width=True):
                         serial_num = chosen_record.get('tracking_number') or f"RX-{chosen_record['appointment_date'].replace('-', '')}-{chosen_record['id']}"
