@@ -655,11 +655,16 @@ def main():
                                     st.session_state.is_submitting_action = False
                                     st.error(f"Error deleting record: {e}")
                     
-                    # --- ADMIN / CASHIER DIRECT RECEIPT PRINTING STATION ---
+                    # --- ADMIN / CASHIER PAYMENT RECEIPT PRINTING STATION (WITH STRICT COMPLETED/PAID CONDITION) ---
                     st.markdown("---")
                     st.markdown("### 🖨️ Admin Payment Receipt Printing Station")
                     
-                    if st.button("🖨️ Print Official Payment Receipt Form", use_container_width=True):
+                    is_paid_and_completed = (str(current_rec.get('status')).strip().lower() == "completed" and current_rec.get('payment_method') and current_rec.get('payment_amount'))
+                    
+                    if not is_paid_and_completed:
+                        st.warning("⚠️ **Printing Restricted:** This record is currently marked as **Pending Payment**, **Waiting**, or **Cancelled**. You must click **'Process Payment & Complete'** above and set the status to **Completed** before printing an official receipt.")
+                    
+                    if st.button("🖨️ Print Official Payment Receipt Form", use_container_width=True, disabled=not is_paid_and_completed):
                         receipt_html = f"""
                         <html>
                         <head>
