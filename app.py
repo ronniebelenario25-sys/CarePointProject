@@ -916,7 +916,7 @@ def main():
                         
                         patient_complaint = st.text_area("Patient Complaint / Chief Complaint", value=existing_complaint, placeholder="Enter patient's reported symptoms or complaint...")
                         diagnosis = st.text_area("Medical Diagnosis", value=existing_diag, placeholder="Enter official diagnosis...")
-                        prescription = st.text_area("Prescription & Treatment Plan (Supports multi-line medicines)", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
+                        prescription = st.text_area("Prescription & Treatment Plan", value=existing_presc, placeholder="Enter prescribed medications and dosage...")
                         
                         cons_lbl = "Saving Consultation..." if st.session_state.is_submitting_action else "💾 Save Consultation & Send to Cashier"
                         save_consultation = st.form_submit_button(cons_lbl, use_container_width=True, disabled=st.session_state.is_submitting_action)
