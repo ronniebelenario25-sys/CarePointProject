@@ -515,21 +515,18 @@ def main():
         "Dr. Villanueva (Obstetrician-Gynecologist)"
     ]
     
-    # Pull all registered doctors from Supabase dynamically
     registered_docs = [
         f"{u.get('full_name')} ({u.get('professional_role') if u.get('professional_role') else 'Specialist'})" 
         for u in users_list 
         if str(u.get('role')).lower() == 'doctor' and u.get('full_name')
     ]
     
-    # Combined master doctors list synced across all portals
     combined_doctors = base_doctors + [d for d in registered_docs if d not in base_doctors]
     
     # --- STRICT DOCTOR ACCOUNT ISOLATION ---
     selected_doctor = "All Doctors"
     if role == "Doctor":
         st.sidebar.markdown("---")
-        # If logged in as the demo doctor account, map it to Dr. Smith, otherwise match the user's registered full name
         if st.session_state.username == "doctor":
             selected_doctor = "Dr. Smith (General Practitioner)"
         else:
@@ -969,11 +966,17 @@ def main():
                                 else:
                                     st.error(f"Failed to save: {err}")
 
-                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (DYNAMIC RESIZING & MULTI-MEDICINE SUPPORT) ---
+                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (PROTECTED UNTIL CONSULTATION SAVED) ---
                     st.markdown("---")
                     st.subheader("🖨️ Print Official Prescription Slip")
                     
-                    if st.button("🖨️ Print Prescription Slip Form", use_container_width=True):
+                    # Check if consultation has been saved and prescription exists
+                    has_prescription = bool(chosen_record.get('prescription') and chosen_record.get('prescription').strip())
+                    
+                    if not has_prescription:
+                        st.warning("⚠️ Please complete and save the consultation above to generate an official serialized prescription before printing.")
+                    
+                    if st.button("🖨️ Print Prescription Slip Form", use_container_width=True, disabled=not has_prescription):
                         serial_num = chosen_record.get('tracking_number') or f"RX-{chosen_record['appointment_date'].replace('-', '')}-{chosen_record['id']}"
                         secure_prc = st.session_state.get('prc_number', '1234567')
                         secure_ptr = st.session_state.get('ptr_number', 'PTR-2026-988')
@@ -1113,7 +1116,6 @@ def main():
                 col_a, col_b = st.columns(2)
                 with col_a:
                     p_name = st.text_input("Patient Full Name", value=my_real_full_name)
-                    # Dynamic master list synced with newly registered doctors
                     doc_choice = st.selectbox("Select Attending Physician", combined_doctors)
                 with col_b:
                     app_date = st.date_input("Preferred Date")
