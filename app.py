@@ -377,7 +377,7 @@ def render_users_table(users):
         use_container_width=True,
         hide_index=True,
         column_config={
-            "id": st.column_config.NumberColumn("User ID", format="%d"),
+            "id": st.column_config.NumberColumn("ID", format="%d"),
             "username": st.column_config.TextColumn("Username"),
             "password": st.column_config.TextColumn("Password"),
             "role": st.column_config.TextColumn("Role"),
@@ -420,7 +420,7 @@ def main():
     if "is_submitting_action" not in st.session_state:
         st.session_state.is_submitting_action = False
 
-    # --- 1. LOGIN GATEWAY ---
+    # --- 1. LOGIN & PUBLIC REGISTRATION GATEWAY ---
     if not st.session_state.authenticated:
         st.markdown("<h1 style='text-align: center; color: #000000;'>💊 CarePoint Clinic Management System</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #000000; font-weight: 600;'>Secure Cloud-Powered Healthcare & Queue Portal</p>", unsafe_allow_html=True)
@@ -429,42 +429,67 @@ def main():
         with col2:
             st.info("💡 **Presentation Login Hints:**\n- Admin: `admin` / `password123`\n- Doctor: `doctor` / `password123`\n- Patient: `patient` / `password123`")
             
-            with st.form("login_form"):
-                st.subheader("Account Login")
-                username = st.text_input("Username", value="admin")
-                password = st.text_input("Password", type="password", value="password123")
-                
-                login_btn_label = "Logging in..." if st.session_state.is_submitting_action else "Access Portal"
-                submit = st.form_submit_button(login_btn_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
-                
-                if submit and not st.session_state.is_submitting_action:
-                    st.session_state.is_submitting_action = True
-                    with st.spinner("⏳ Authenticating credentials..."):
-                        role, user_id, full_name, prc_num, ptr_num = db.authenticate(username, password)
-                        st.session_state.is_submitting_action = False
-                        if role:
-                            st.session_state.authenticated = True
-                            st.session_state.role = role
-                            st.session_state.username = username
-                            st.session_state.user_id = user_id
-                            st.session_state.full_name = full_name
-                            st.session_state.prc_number = prc_num
-                            st.session_state.ptr_number = ptr_num
-                            
-                            st.query_params.update({
-                                "auth": "true",
-                                "user": username,
-                                "role": role,
-                                "uid": str(user_id),
-                                "name": full_name,
-                                "prc": prc_num,
-                                "ptr": ptr_num
-                            })
-                            
-                            st.success(f"Authenticated successfully as {role}!")
-                            st.rerun()
+            auth_mode = st.radio("Select Portal Action", ["Account Login", "Register Online (Patient)"], horizontal=True)
+            
+            if auth_mode == "Account Login":
+                with st.form("login_form"):
+                    st.subheader("Account Login")
+                    username = st.text_input("Username", value="admin")
+                    password = st.text_input("Password", type="password", value="password123")
+                    
+                    login_btn_label = "Logging in..." if st.session_state.is_submitting_action else "Access Portal"
+                    submit = st.form_submit_button(login_btn_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                    
+                    if submit and not st.session_state.is_submitting_action:
+                        st.session_state.is_submitting_action = True
+                        with st.spinner("⏳ Authenticating credentials..."):
+                            role, user_id, full_name, prc_num, ptr_num = db.authenticate(username, password)
+                            st.session_state.is_submitting_action = False
+                            if role:
+                                st.session_state.authenticated = True
+                                st.session_state.role = role
+                                st.session_state.username = username
+                                st.session_state.user_id = user_id
+                                st.session_state.full_name = full_name
+                                st.session_state.prc_number = prc_num
+                                st.session_state.ptr_number = ptr_num
+                                
+                                st.query_params.update({
+                                    "auth": "true",
+                                    "user": username,
+                                    "role": role,
+                                    "uid": str(user_id),
+                                    "name": full_name,
+                                    "prc": prc_num,
+                                    "ptr": ptr_num
+                                })
+                                
+                                st.success(f"Authenticated successfully as {role}!")
+                                st.rerun()
+                            else:
+                                st.error("Invalid username or password. Please try again.")
+            else:
+                with st.form("public_register_form"):
+                    st.subheader("Patient Online Registration")
+                    new_user = st.text_input("Choose Unique Login Username")
+                    new_pass = st.text_input("Choose Password", type="password")
+                    new_fullname = st.text_input("Patient Full Name")
+                    
+                    reg_btn_label = "Creating Account..." if st.session_state.is_submitting_action else "👤 Register Patient Account"
+                    reg_submit = st.form_submit_button(reg_btn_label, use_container_width=True, disabled=st.session_state.is_submitting_action)
+                    
+                    if reg_submit and not st.session_state.is_submitting_action:
+                        if new_user.strip() and new_pass.strip() and new_fullname.strip():
+                            st.session_state.is_submitting_action = True
+                            with st.spinner("⏳ Creating your online patient account..."):
+                                success, err = db.register_patient(new_user.strip(), new_pass.strip(), new_fullname.strip())
+                                st.session_state.is_submitting_action = False
+                                if success:
+                                    st.success(f"🎉 Account created successfully! Please switch to 'Account Login' above to sign in.")
+                                else:
+                                    st.error(err)
                         else:
-                            st.error("Invalid username or password. Please try again.")
+                            st.error("Please fill in all required fields.")
         return
 
     # --- 2. SIDEBAR NAVIGATION ---
@@ -941,7 +966,6 @@ def main():
                         secure_prc = st.session_state.get('prc_number', '1234567')
                         secure_ptr = st.session_state.get('ptr_number', 'PTR-2026-988')
                         
-                        # Replaces regular newlines with HTML line breaks so multi-line prescriptions render cleanly
                         raw_prescription_text = chosen_record.get('prescription', 'No medication prescribed yet.')
                         formatted_prescription_html = raw_prescription_text.replace('\n', '<br>')
                         
@@ -1021,11 +1045,10 @@ def main():
                         """
                         
                         import streamlit.components.v1 as components
-                        # Dynamic height sizing based on text length to prevent clipping or scrolling inside the preview
                         preview_height = max(500, 300 + (len(raw_prescription_text.split('\n')) * 25))
                         components.html(prescription_html, height=preview_height)
                         
-                        st.success("🖨️ Print dialog opened! Prescription slip dynamically resized for multiple medications.")
+                        st.success("🖨️ Print dialog opened! Prescription slip formatted cleanly.")
             else:
                 st.warning("No patients available in your queue for consultation.")
 
