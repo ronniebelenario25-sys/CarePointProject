@@ -420,6 +420,10 @@ def main():
     if "is_submitting_action" not in st.session_state:
         st.session_state.is_submitting_action = False
 
+    # Track consultation saves per record ID in session state
+    if "saved_consultations" not in st.session_state:
+        st.session_state.saved_consultations = set()
+
     # --- 1. LOGIN & PUBLIC REGISTRATION GATEWAY ---
     if not st.session_state.authenticated:
         st.markdown("<h1 style='text-align: center; color: #000000;'>💊 CarePoint Clinic Management System</h1>", unsafe_allow_html=True)
@@ -961,6 +965,8 @@ def main():
                                 success, err = db.update_consultation(chosen_record["id"], patient_complaint, diagnosis, prescription, chosen_record["appointment_date"])
                                 st.session_state.is_submitting_action = False
                                 if success:
+                                    # Mark this record ID as saved in session state so print button unlocks immediately
+                                    st.session_state.saved_consultations.add(chosen_record["id"])
                                     st.success(f"🎉 Consultation saved for {chosen_record['patient_name']}! Permanent tracking ID generated and patient sent to cashier.")
                                     st.rerun()
                                 else:
@@ -970,19 +976,22 @@ def main():
                     st.markdown("---")
                     st.subheader("🖨️ Print Official Prescription Slip")
                     
-                    # Check if consultation has been saved and prescription exists
-                    has_prescription = bool(chosen_record.get('prescription') and chosen_record.get('prescription').strip())
+                    # Unlocks if saved in DB OR saved during this session
+                    has_saved_db = bool(chosen_record.get('prescription') and chosen_record.get('prescription').strip())
+                    is_saved_session = chosen_record["id"] in st.session_state.saved_consultations
+                    can_print = has_saved_db or is_saved_session
                     
-                    if not has_prescription:
+                    if not can_print:
                         st.warning("⚠️ Please complete and save the consultation above to generate an official serialized prescription before printing.")
                     
-                    if st.button("🖨️ Print Prescription Slip Form", use_container_width=True, disabled=not has_prescription):
+                    if st.button("🖨️ Print Prescription Slip Form", use_container_width=True, disabled=not can_print):
+                        # Fetch the latest saved prescription text
+                        current_prescription_text = prescription if 'prescription' in locals() and prescription.strip() else chosen_record.get('prescription', 'No medication prescribed yet.')
                         serial_num = chosen_record.get('tracking_number') or f"RX-{chosen_record['appointment_date'].replace('-', '')}-{chosen_record['id']}"
                         secure_prc = st.session_state.get('prc_number', '1234567')
                         secure_ptr = st.session_state.get('ptr_number', 'PTR-2026-988')
                         
-                        raw_prescription_text = chosen_record.get('prescription', 'No medication prescribed yet.')
-                        formatted_prescription_html = raw_prescription_text.replace('\n', '<br>')
+                        formatted_prescription_html = current_prescription_text.replace('\n', '<br>')
                         
                         prescription_html = f"""
                         <html>
@@ -1060,7 +1069,7 @@ def main():
                         """
                         
                         import streamlit.components.v1 as components
-                        preview_height = max(500, 300 + (len(raw_prescription_text.split('\n')) * 25))
+                        preview_height = max(500, 300 + (len(current_prescription_text.split('\n')) * 25))
                         components.html(prescription_html, height=preview_height)
                         
                         st.success("🖨️ Print dialog opened! Prescription slip formatted cleanly.")
