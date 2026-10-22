@@ -515,12 +515,14 @@ def main():
         "Dr. Villanueva (Obstetrician-Gynecologist)"
     ]
     
+    # Pull all registered doctors from Supabase dynamically
     registered_docs = [
-        f"{u.get('full_name')} ({u.get('professional_role')})" 
+        f"{u.get('full_name')} ({u.get('professional_role') if u.get('professional_role') else 'Specialist'})" 
         for u in users_list 
         if str(u.get('role')).lower() == 'doctor' and u.get('full_name')
     ]
     
+    # Combined master doctors list synced across all portals
     combined_doctors = base_doctors + [d for d in registered_docs if d not in base_doctors]
     
     # --- STRICT DOCTOR ACCOUNT ISOLATION ---
@@ -533,7 +535,7 @@ def main():
         else:
             current_doc_obj = next((u for u in users_list if str(u.get('username')) == str(st.session_state.username)), {})
             doc_full = current_doc_obj.get('full_name') or st.session_state.get('full_name') or "Dr. Smith"
-            doc_spec = current_doc_obj.get('professional_role') or "General Practitioner"
+            doc_spec = current_doc_obj.get('professional_role') or "Specialist"
             selected_doctor = f"{doc_full} ({doc_spec})"
             if selected_doctor not in combined_doctors:
                 combined_doctors.append(selected_doctor)
@@ -656,7 +658,7 @@ def main():
                         with col_e1:
                             edit_acc = st.text_input("Account Username", value=current_rec.get('account_username') or current_rec['patient_name'])
                             edit_patient = st.text_input("Patient Full Name", value=current_rec['patient_name'])
-                            edit_doctor = st.selectbox("Doctor ID", base_doctors, index=base_doctors.index(current_rec['doctor_id']) if current_rec['doctor_id'] in base_doctors else 0)
+                            edit_doctor = st.selectbox("Doctor ID", combined_doctors, index=combined_doctors.index(current_rec['doctor_id']) if current_rec['doctor_id'] in combined_doctors else 0)
                         with col_e2:
                             edit_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=current_rec['appointment_date'])
                             edit_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(current_rec['appointment_time']) if current_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
@@ -893,7 +895,7 @@ def main():
                 with col_w1:
                     walkin_username = st.text_input("Account Username Handle")
                     walkin_patient_name = st.text_input("Patient Full Name")
-                    walkin_doctor = st.selectbox("Assign Attending Physician", base_doctors, key="walkin_doc")
+                    walkin_doctor = st.selectbox("Assign Attending Physician", combined_doctors, key="walkin_doc")
                 with col_w2:
                     walkin_date = st.date_input("Preferred Date", key="walkin_date")
                     walkin_time = st.selectbox("Exact Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], key="walkin_time")
@@ -1111,7 +1113,8 @@ def main():
                 col_a, col_b = st.columns(2)
                 with col_a:
                     p_name = st.text_input("Patient Full Name", value=my_real_full_name)
-                    doc_choice = st.selectbox("Select Attending Physician", base_doctors)
+                    # Dynamic master list synced with newly registered doctors
+                    doc_choice = st.selectbox("Select Attending Physician", combined_doctors)
                 with col_b:
                     app_date = st.date_input("Preferred Date")
                     app_time = st.selectbox("Exact Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"])
@@ -1190,7 +1193,7 @@ def main():
                         col_p1, col_p2 = st.columns(2)
                         with col_p1:
                             edit_p_name = st.text_input("Patient Full Name", value=curr_pat_rec['patient_name'])
-                            edit_p_doc = st.selectbox("Attending Physician", base_doctors, index=base_doctors.index(curr_pat_rec['doctor_id']) if curr_pat_rec['doctor_id'] in base_doctors else 0)
+                            edit_p_doc = st.selectbox("Attending Physician", combined_doctors, index=combined_doctors.index(curr_pat_rec['doctor_id']) if curr_pat_rec['doctor_id'] in combined_doctors else 0)
                             edit_p_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=curr_pat_rec['appointment_date'])
                         with col_p2:
                             edit_p_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(curr_pat_rec['appointment_time']) if curr_pat_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
