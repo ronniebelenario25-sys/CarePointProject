@@ -420,7 +420,6 @@ def main():
     if "is_submitting_action" not in st.session_state:
         st.session_state.is_submitting_action = False
 
-    # Track consultation saves per record ID in session state
     if "saved_consultations" not in st.session_state:
         st.session_state.saved_consultations = set()
 
@@ -527,20 +526,15 @@ def main():
     
     combined_doctors = base_doctors + [d for d in registered_docs if d not in base_doctors]
     
-    # --- STRICT DOCTOR ACCOUNT ISOLATION ---
-    selected_doctor = "All Doctors"
+    # --- DOCTOR QUICK HOPPER SWITCHER (FOR PRESENTATIONS) ---
+    selected_doctor = "Dr. Smith (General Practitioner)"
     if role == "Doctor":
         st.sidebar.markdown("---")
-        if st.session_state.username == "doctor":
-            selected_doctor = "Dr. Smith (General Practitioner)"
-        else:
-            current_doc_obj = next((u for u in users_list if str(u.get('username')) == str(st.session_state.username)), {})
-            doc_full = current_doc_obj.get('full_name') or st.session_state.get('full_name') or "Dr. Smith"
-            doc_spec = current_doc_obj.get('professional_role') or "Specialist"
-            selected_doctor = f"{doc_full} ({doc_spec})"
-            if selected_doctor not in combined_doctors:
-                combined_doctors.append(selected_doctor)
+        st.sidebar.markdown("### 🔀 Doctor Quick Switcher")
+        st.sidebar.markdown("Hop instantly between doctors without logging out:")
         
+        # Let the professor instantly select any doctor from the dropdown list
+        selected_doctor = st.sidebar.selectbox("Select Active Doctor Workspace", combined_doctors, index=0)
         st.sidebar.info(f"🩺 **Active Clinical Workspace:**\n`{selected_doctor}`")
 
     all_records = db.get_all_appointments()
@@ -633,7 +627,6 @@ def main():
                     with st.form("admin_cashier_form"):
                         st.markdown(f"### 💳 Checkout & Verification for Patient: **{current_rec['patient_name']}** (ID #{current_rec['id']})")
                         
-                        # --- CASHIER SECURE VIEW (Prescription & Appointment info ONLY, Diagnosis Hidden) ---
                         st.markdown("---")
                         st.markdown("#### 📄 Authenticated Appointment & Prescription Details (Cashier View)")
                         rx_serial = current_rec.get('tracking_number') or f"RX-PENDING-{current_rec.get('id')}"
@@ -694,7 +687,6 @@ def main():
                                     st.session_state.is_submitting_action = False
                                     st.error(f"Error deleting record: {e}")
                     
-                    # --- ADMIN / CASHIER PAYMENT RECEIPT PRINTING STATION ---
                     st.markdown("---")
                     st.markdown("### 🖨️ Admin Payment Receipt Printing Station")
                     
@@ -924,7 +916,6 @@ def main():
         st.title("🩺 Medical Professional / Doctor Portal")
         st.markdown(f"Welcome, **{selected_doctor}**. Managing your confidential patient treatments and schedule.")
         
-        # Strictly filters records so the doctor ONLY sees their own appointments
         doc_records = [r for r in all_records if r.get("doctor_id") == selected_doctor]
         
         doc_tab1, doc_tab2, doc_tab3 = st.tabs([
@@ -965,18 +956,15 @@ def main():
                                 success, err = db.update_consultation(chosen_record["id"], patient_complaint, diagnosis, prescription, chosen_record["appointment_date"])
                                 st.session_state.is_submitting_action = False
                                 if success:
-                                    # Mark this record ID as saved in session state so print button unlocks immediately
                                     st.session_state.saved_consultations.add(chosen_record["id"])
                                     st.success(f"🎉 Consultation saved for {chosen_record['patient_name']}! Permanent tracking ID generated and patient sent to cashier.")
                                     st.rerun()
                                 else:
                                     st.error(f"Failed to save: {err}")
 
-                    # --- DOCTOR PRESCRIPTION PRINTING SECTION (PROTECTED UNTIL CONSULTATION SAVED) ---
                     st.markdown("---")
                     st.subheader("🖨️ Print Official Prescription Slip")
                     
-                    # Unlocks if saved in DB OR saved during this session
                     has_saved_db = bool(chosen_record.get('prescription') and chosen_record.get('prescription').strip())
                     is_saved_session = chosen_record["id"] in st.session_state.saved_consultations
                     can_print = has_saved_db or is_saved_session
@@ -985,7 +973,6 @@ def main():
                         st.warning("⚠️ Please complete and save the consultation above to generate an official serialized prescription before printing.")
                     
                     if st.button("🖨️ Print Prescription Slip Form", use_container_width=True, disabled=not can_print):
-                        # Fetch the latest saved prescription text
                         current_prescription_text = prescription if 'prescription' in locals() and prescription.strip() else chosen_record.get('prescription', 'No medication prescribed yet.')
                         serial_num = chosen_record.get('tracking_number') or f"RX-{chosen_record['appointment_date'].replace('-', '')}-{chosen_record['id']}"
                         secure_prc = st.session_state.get('prc_number', '1234567')
