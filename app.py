@@ -524,16 +524,15 @@ def main():
         if str(u.get('role')).lower() == 'doctor' and u.get('full_name')
     ]
     
-    combined_doctors = base_doctors + [d for d in registered_docs if d not in base_doctors]
+    combined_doctors = ["🌐 All Doctors (Master Search List)"] + base_doctors + [d for d in registered_docs if d not in base_doctors]
     
-    # --- DOCTOR QUICK HOPPER SWITCHER (FOR PRESENTATIONS) ---
-    selected_doctor = "Dr. Smith (General Practitioner)"
+    # --- DOCTOR QUICK HOPPER SWITCHER WITH "ALL DOCTORS" ---
+    selected_doctor = "🌐 All Doctors (Master Search List)"
     if role == "Doctor":
         st.sidebar.markdown("---")
         st.sidebar.markdown("### 🔀 Doctor Quick Switcher")
-        st.sidebar.markdown("Hop instantly between doctors without logging out:")
+        st.sidebar.markdown("Hop instantly between doctors or view the master list:")
         
-        # Let the professor instantly select any doctor from the dropdown list
         selected_doctor = st.sidebar.selectbox("Select Active Doctor Workspace", combined_doctors, index=0)
         st.sidebar.info(f"🩺 **Active Clinical Workspace:**\n`{selected_doctor}`")
 
@@ -652,7 +651,7 @@ def main():
                         with col_e1:
                             edit_acc = st.text_input("Account Username", value=current_rec.get('account_username') or current_rec['patient_name'])
                             edit_patient = st.text_input("Patient Full Name", value=current_rec['patient_name'])
-                            edit_doctor = st.selectbox("Doctor ID", combined_doctors, index=combined_doctors.index(current_rec['doctor_id']) if current_rec['doctor_id'] in combined_doctors else 0)
+                            edit_doctor = st.selectbox("Doctor ID", combined_doctors[1:], index=combined_doctors[1:].index(current_rec['doctor_id']) if current_rec['doctor_id'] in combined_doctors[1:] else 0)
                         with col_e2:
                             edit_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=current_rec['appointment_date'])
                             edit_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(current_rec['appointment_time']) if current_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
@@ -888,7 +887,7 @@ def main():
                 with col_w1:
                     walkin_username = st.text_input("Account Username Handle")
                     walkin_patient_name = st.text_input("Patient Full Name")
-                    walkin_doctor = st.selectbox("Assign Attending Physician", combined_doctors, key="walkin_doc")
+                    walkin_doctor = st.selectbox("Assign Attending Physician", combined_doctors[1:], key="walkin_doc")
                 with col_w2:
                     walkin_date = st.date_input("Preferred Date", key="walkin_date")
                     walkin_time = st.selectbox("Exact Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], key="walkin_time")
@@ -914,9 +913,14 @@ def main():
     # --- DOCTOR PORTAL ---
     elif role == "Doctor":
         st.title("🩺 Medical Professional / Doctor Portal")
-        st.markdown(f"Welcome, **{selected_doctor}**. Managing your confidential patient treatments and schedule.")
+        st.markdown(f"Welcome, **{selected_doctor}**. Managing confidential patient treatments and schedule.")
         
-        doc_records = [r for r in all_records if r.get("doctor_id") == selected_doctor]
+        # If "All Doctors" is selected, show master search list across all records
+        if selected_doctor == "🌐 All Doctors (Master Search List)":
+            doc_records = all_records
+            st.info("🌐 **Master Search Mode:** Viewing appointments across all clinic doctors. You can search or filter any patient below.")
+        else:
+            doc_records = [r for r in all_records if r.get("doctor_id") == selected_doctor]
         
         doc_tab1, doc_tab2, doc_tab3 = st.tabs([
             "🩺 Consultation & Treatment Room", 
@@ -929,10 +933,10 @@ def main():
             
             if doc_records:
                 sorted_doc_records = sorted(doc_records, key=lambda x: int(x['id']))
-                patient_names_list = [f"ID #{r['id']} | Patient: {r['patient_name']} ({r['appointment_date']} {r['appointment_time']})" for r in sorted_doc_records]
+                patient_names_list = [f"ID #{r['id']} | Patient: {r['patient_name']} (Dr: {r['doctor_id']}) ({r['appointment_date']} {r['appointment_time']})" for r in sorted_doc_records]
                 selected_patient_str = st.selectbox("Select Patient in Consultation", patient_names_list)
                 
-                chosen_record = next((r for r in sorted_doc_records if f"ID #{r['id']} | Patient: {r['patient_name']} ({r['appointment_date']} {r['appointment_time']})" == selected_patient_str), None)
+                chosen_record = next((r for r in sorted_doc_records if f"ID #{r['id']} | Patient: {r['patient_name']} (Dr: {r['doctor_id']}) ({r['appointment_date']} {r['appointment_time']})" == selected_patient_str), None)
                 
                 if chosen_record:
                     st.info(f"**Patient:** {chosen_record['patient_name']} | **Assigned Doctor:** {chosen_record['doctor_id']} | **Time Slot:** {chosen_record['appointment_date']} at {chosen_record['appointment_time']}")
@@ -1061,25 +1065,25 @@ def main():
                         
                         st.success("🖨️ Print dialog opened! Prescription slip formatted cleanly.")
             else:
-                st.warning("No patients currently assigned in your personal consultation queue.")
+                st.warning("No patients currently assigned in queue.")
 
         with doc_tab2:
             col1, col2 = st.columns(2)
-            col1.metric(label=f"Your Appointments", value=len(doc_records))
+            col1.metric(label=f"Appointments Listed", value=len(doc_records))
             col2.metric(label="Clinic Queue Status", value="Active 🟢")
             
             st.markdown("---")
-            st.subheader(f"🕒 Your Patient Schedule — {selected_doctor}")
+            st.subheader(f"🕒 Patient Schedule — {selected_doctor}")
             render_modern_table(doc_records)
 
         with doc_tab3:
-            st.subheader(f"💵 Your Treated Patients Awaiting Payment")
+            st.subheader(f"💵 Treated Patients Awaiting Payment ({selected_doctor})")
             
             pending_records = [r for r in doc_records if r.get("status") == "Pending Payment"]
             if pending_records:
                 render_modern_table(pending_records)
             else:
-                st.info(f"No patients currently waiting for payment under your name.")
+                st.info(f"No patients currently waiting for payment.")
 
     # --- PATIENT PORTAL ---
     elif role == "Patient":
@@ -1112,7 +1116,7 @@ def main():
                 col_a, col_b = st.columns(2)
                 with col_a:
                     p_name = st.text_input("Patient Full Name", value=my_real_full_name)
-                    doc_choice = st.selectbox("Select Attending Physician", combined_doctors)
+                    doc_choice = st.selectbox("Select Attending Physician", combined_doctors[1:])
                 with col_b:
                     app_date = st.date_input("Preferred Date")
                     app_time = st.selectbox("Exact Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"])
@@ -1191,7 +1195,7 @@ def main():
                         col_p1, col_p2 = st.columns(2)
                         with col_p1:
                             edit_p_name = st.text_input("Patient Full Name", value=curr_pat_rec['patient_name'])
-                            edit_p_doc = st.selectbox("Attending Physician", combined_doctors, index=combined_doctors.index(curr_pat_rec['doctor_id']) if curr_pat_rec['doctor_id'] in combined_doctors else 0)
+                            edit_p_doc = st.selectbox("Attending Physician", combined_doctors[1:], index=combined_doctors[1:].index(curr_pat_rec['doctor_id']) if curr_pat_rec['doctor_id'] in combined_doctors[1:] else 0)
                             edit_p_date = st.text_input("Appointment Date (YYYY-MM-DD)", value=curr_pat_rec['appointment_date'])
                         with col_p2:
                             edit_p_time = st.selectbox("Time Slot", ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"], index=["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"].index(curr_pat_rec['appointment_time']) if curr_pat_rec['appointment_time'] in ["08:00 AM", "09:30 AM", "11:00 AM", "01:30 PM", "03:00 PM", "04:30 PM"] else 0)
